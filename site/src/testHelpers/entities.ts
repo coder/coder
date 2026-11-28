@@ -5774,6 +5774,7 @@ export const MockAIProviderOpenAI: TypesGen.AIProvider = {
 	icon: "",
 	base_url: "https://api.openai.com",
 	enabled: false,
+	deleted: false,
 	api_keys: [
 		{
 			id: "6d7c1f3a-1f0b-4a12-a1b5-0fb1f8e72e01",
@@ -5794,6 +5795,7 @@ export const MockAIProviderAnthropic: TypesGen.AIProvider = {
 	icon: "",
 	base_url: "https://api.anthropic.com",
 	enabled: false,
+	deleted: false,
 	api_keys: [],
 	settings: null as unknown as TypesGen.AIProviderSettings,
 	created_at: "2026-05-14T10:00:00Z",
@@ -5814,6 +5816,7 @@ export const MockAIProviderBedrock: TypesGen.AIProvider = {
 	icon: "",
 	base_url: "https://bedrock-runtime.us-east-2.amazonaws.com",
 	enabled: true,
+	deleted: false,
 	api_keys: [],
 	settings: {
 		_type: "bedrock",
@@ -5840,6 +5843,7 @@ export const MockAIProviderClaudePlatformAWS: TypesGen.AIProvider = {
 	icon: "",
 	base_url: "https://aws-external-anthropic.us-east-1.api.aws",
 	enabled: true,
+	deleted: false,
 	api_keys: [],
 	settings: {
 		_type: "claude_platform_aws",
@@ -5874,6 +5878,7 @@ export const MockAIProviderCopilot: TypesGen.AIProvider = {
 	icon: "",
 	base_url: "https://api.business.githubcopilot.com",
 	enabled: true,
+	deleted: false,
 	api_keys: [],
 	settings: null as unknown as TypesGen.AIProviderSettings,
 	created_at: "2026-05-14T10:00:00Z",

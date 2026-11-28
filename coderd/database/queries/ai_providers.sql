@@ -40,34 +40,20 @@ ORDER BY
     name ASC;
 
 -- name: GetAIProviderSummaries :many
-SELECT
+SELECT DISTINCT ON (name)
     id,
     type,
     name,
     display_name,
     icon,
     enabled,
+    deleted,
     created_at,
     updated_at
 FROM
     ai_providers
 WHERE
-    NOT deleted
-ORDER BY
-    name ASC;
-
--- name: GetAIProviderFilterOptions :many
--- Returns the display metadata AI Gateway session viewers need to filter
--- interceptions by provider_name. Soft-deleted and disabled rows are
--- included because interceptions keep referencing them. When a name has
--- been reused, the live row wins so current metadata is shown.
-SELECT DISTINCT ON (name)
-    name,
-    type,
-    display_name,
-    icon
-FROM
-    ai_providers
+    @include_deleted::boolean OR NOT deleted
 ORDER BY
     name ASC,
     deleted ASC,

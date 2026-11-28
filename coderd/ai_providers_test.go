@@ -15,6 +15,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/serpent"
@@ -40,10 +41,10 @@ func TestAIProvidersCRUD(t *testing.T) {
 		memberClient, _ := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
 		ctx := testutil.Context(t, testutil.WaitLong)
 		//nolint:gocritic // Owners get the full view, which is built separately.
-		got, err := client.AIProviders(ctx)
+		got, err := client.AIProviders(ctx, codersdk.AIProvidersFilter{})
 		require.NoError(t, err)
 		require.Equal(t, []codersdk.AIProvider{}, got)
-		got, err = memberClient.AIProviders(ctx)
+		got, err = memberClient.AIProviders(ctx, codersdk.AIProvidersFilter{})
 		require.NoError(t, err)
 		require.Equal(t, []codersdk.AIProvider{}, got)
 	})
@@ -129,7 +130,7 @@ func TestAIProvidersCRUD(t *testing.T) {
 		require.Equal(t, created.ID, gotByName.ID)
 
 		// List.
-		list, err := client.AIProviders(ctx)
+		list, err := client.AIProviders(ctx, codersdk.AIProvidersFilter{})
 		require.NoError(t, err)
 		require.Len(t, list, 1)
 		require.Equal(t, created.ID, list[0].ID)
@@ -162,7 +163,7 @@ func TestAIProvidersCRUD(t *testing.T) {
 		require.Equal(t, "anthropic.claude-3-5-sonnet", updated.Settings.Bedrock.Model)
 
 		memberClient, _ := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
-		memberList, err := memberClient.AIProviders(ctx)
+		memberList, err := memberClient.AIProviders(ctx, codersdk.AIProvidersFilter{})
 		require.NoError(t, err)
 		withoutConfig := updated
 		withoutConfig.BaseURL = ""
@@ -181,7 +182,7 @@ func TestAIProvidersCRUD(t *testing.T) {
 		require.Contains(t, sdkErr.Message, "Resource not found")
 
 		// List excludes the deleted provider.
-		list, err = client.AIProviders(ctx)
+		list, err = client.AIProviders(ctx, codersdk.AIProvidersFilter{})
 		require.NoError(t, err)
 		require.Empty(t, list)
 
@@ -509,12 +510,49 @@ func TestAIProvidersCRUD(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		list, err := client.AIProviders(ctx)
+		list, err := client.AIProviders(ctx, codersdk.AIProvidersFilter{})
 		require.NoError(t, err)
 		require.Len(t, list, 1)
 		require.Equal(t, live.ID, list[0].ID)
 		require.Len(t, list[0].APIKeys, 1)
 		require.Equal(t, live.APIKeys[0].ID, list[0].APIKeys[0].ID)
+	})
+
+	t.Run("ListIncludeDeleted", func(t *testing.T) {
+		t.Parallel()
+		ownerClient := coderdtest.New(t, nil)
+		firstUser := coderdtest.CreateFirstUser(t, ownerClient)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		create := func(name string) codersdk.AIProvider {
+			//nolint:gocritic // Only owners can create providers.
+			provider, err := ownerClient.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+				Type:    codersdk.AIProviderTypeOpenAI,
+				Name:    name,
+				Enabled: true,
+				BaseURL: "https://api.openai.com/v1",
+			})
+			require.NoError(t, err)
+			return provider
+		}
+		gone := create("list-gone")
+		require.NoError(t, ownerClient.DeleteAIProvider(ctx, gone.ID.String()))
+		reusedBefore := create("list-reused")
+		require.NoError(t, ownerClient.DeleteAIProvider(ctx, reusedBefore.ID.String()))
+		reused := create("list-reused")
+
+		auditorClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, firstUser.OrganizationID, rbac.RoleAuditor())
+		for _, client := range []*codersdk.Client{ownerClient, auditorClient} {
+			got, err := client.AIProviders(ctx, codersdk.AIProvidersFilter{IncludeDeleted: true})
+			require.NoError(t, err)
+
+			require.Len(t, got, 2)
+			require.Equal(t, gone.ID, got[0].ID)
+			require.True(t, got[0].Deleted)
+			require.Empty(t, got[0].BaseURL)
+			require.Equal(t, reused.ID, got[1].ID)
+			require.False(t, got[1].Deleted)
+		}
 	})
 
 	t.Run("LookupInvalidName", func(t *testing.T) {
@@ -547,7 +585,7 @@ func TestAIProvidersCRUD(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		anon := codersdk.New(ownerClient.URL)
-		_, err := anon.AIProviders(ctx)
+		_, err := anon.AIProviders(ctx, codersdk.AIProvidersFilter{})
 		require.Error(t, err)
 		var sdkErr *codersdk.Error
 		require.ErrorAs(t, err, &sdkErr)
@@ -2233,7 +2271,7 @@ func TestAIProviderHostnameCollisionWarnings(t *testing.T) {
 		require.Nil(t, winner.Status, "first provider in database order should not get a warning on get")
 
 		//nolint:gocritic // Owner role is the audience for this endpoint.
-		providers, err := client.AIProviders(ctx)
+		providers, err := client.AIProviders(ctx, codersdk.AIProvidersFilter{})
 		require.NoError(t, err)
 		require.Len(t, providers, 2)
 		var firstListed, secondListed codersdk.AIProvider
@@ -2349,7 +2387,7 @@ func TestAIProviderHostnameCollisionWarnings(t *testing.T) {
 		require.Nil(t, second.Status)
 
 		//nolint:gocritic // Owner role is the audience for this endpoint.
-		providers, err := client.AIProviders(ctx)
+		providers, err := client.AIProviders(ctx, codersdk.AIProvidersFilter{})
 		require.NoError(t, err)
 		for _, provider := range providers {
 			require.Nil(t, provider.Status)

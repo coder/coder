@@ -2245,21 +2245,6 @@ func (mr *MockStoreMockRecorder) GetAIProviderByName(ctx, name any) *gomock.Call
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAIProviderByName", reflect.TypeOf((*MockStore)(nil).GetAIProviderByName), ctx, name)
 }
 
-// GetAIProviderFilterOptions mocks base method.
-func (m *MockStore) GetAIProviderFilterOptions(ctx context.Context) ([]database.GetAIProviderFilterOptionsRow, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetAIProviderFilterOptions", ctx)
-	ret0, _ := ret[0].([]database.GetAIProviderFilterOptionsRow)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetAIProviderFilterOptions indicates an expected call of GetAIProviderFilterOptions.
-func (mr *MockStoreMockRecorder) GetAIProviderFilterOptions(ctx any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAIProviderFilterOptions", reflect.TypeOf((*MockStore)(nil).GetAIProviderFilterOptions), ctx)
-}
-
 // GetAIProviderKeyByID mocks base method.
 func (m *MockStore) GetAIProviderKeyByID(ctx context.Context, id uuid.UUID) (database.AIProviderKey, error) {
 	m.ctrl.T.Helper()
@@ -2336,18 +2321,18 @@ func (mr *MockStoreMockRecorder) GetAIProviderKeysByProviderIDs(ctx, providerIds
 }
 
 // GetAIProviderSummaries mocks base method.
-func (m *MockStore) GetAIProviderSummaries(ctx context.Context) ([]database.GetAIProviderSummariesRow, error) {
+func (m *MockStore) GetAIProviderSummaries(ctx context.Context, includeDeleted bool) ([]database.GetAIProviderSummariesRow, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetAIProviderSummaries", ctx)
+	ret := m.ctrl.Call(m, "GetAIProviderSummaries", ctx, includeDeleted)
 	ret0, _ := ret[0].([]database.GetAIProviderSummariesRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetAIProviderSummaries indicates an expected call of GetAIProviderSummaries.
-func (mr *MockStoreMockRecorder) GetAIProviderSummaries(ctx any) *gomock.Call {
+func (mr *MockStoreMockRecorder) GetAIProviderSummaries(ctx, includeDeleted any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAIProviderSummaries", reflect.TypeOf((*MockStore)(nil).GetAIProviderSummaries), ctx)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAIProviderSummaries", reflect.TypeOf((*MockStore)(nil).GetAIProviderSummaries), ctx, includeDeleted)
 }
 
 // GetAIProviders mocks base method.

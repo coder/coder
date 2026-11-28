@@ -153,19 +153,6 @@ export interface AIBridgePricedModel {
 	readonly cache_write_price: number | null;
 }
 
-// From codersdk/aibridge.go
-/**
- * AIBridgeProvider is the display metadata for a configured AI provider,
- * used to filter AI Gateway sessions by provider_name. It carries no
- * configuration so it can be served to anyone who can read sessions.
- */
-export interface AIBridgeProvider {
-	readonly name: string;
-	readonly type: AIProviderType;
-	readonly display_name: string;
-	readonly icon: string;
-}
-
 // From codersdk/deployment.go
 export interface AIBridgeProxyConfig {
 	readonly enabled: boolean;
@@ -522,6 +509,7 @@ export interface AIProvider {
 	readonly display_name: string;
 	readonly icon: string;
 	readonly enabled: boolean;
+	readonly deleted: boolean;
 	readonly base_url: string;
 	readonly api_keys: readonly AIProviderKey[];
 	readonly settings: AIProviderSettings;
@@ -753,6 +741,11 @@ export const AIProviderTypes: AIProviderType[] = [
 	"openrouter",
 	"vercel",
 ];
+
+// From codersdk/aiproviders.go
+export interface AIProvidersFilter {
+	readonly include_deleted?: boolean;
+}
 
 // From codersdk/aibridge.go
 /**

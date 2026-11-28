@@ -11,8 +11,8 @@ import {
 	type AISpendReportFilter,
 	aiBridgeClients,
 	aiBridgeModels,
-	aiBridgeProviders,
 } from "#/api/queries/aiBridge";
+import { aiProvidersIncludingDeleted } from "#/api/queries/aiProviders";
 import { groupsByOrganization } from "#/api/queries/groups";
 import { organizationMembers } from "#/api/queries/organizations";
 import { Avatar } from "#/components/Avatar/Avatar";
@@ -94,7 +94,7 @@ const getProviderOptions = async (
 	query: string,
 	queryClient: OptionsQueryClient,
 ): Promise<FilterOption[]> => {
-	const providers = await queryClient.fetchQuery(aiBridgeProviders());
+	const providers = await queryClient.fetchQuery(aiProvidersIncludingDeleted());
 	const normalized = query.trim().toLowerCase();
 	return providers
 		.filter(

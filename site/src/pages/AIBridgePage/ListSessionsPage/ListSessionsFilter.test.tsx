@@ -45,7 +45,7 @@ const ListSessionsFilterHarness = ({
 
 describe("ListSessionsFilter", () => {
 	beforeEach(() => {
-		vi.spyOn(API, "getAIBridgeProviders").mockResolvedValue([]);
+		vi.spyOn(API, "getAIProviders").mockResolvedValue([]);
 		vi.spyOn(API, "getAIBridgeClients").mockResolvedValue([]);
 		vi.spyOn(API, "getAIBridgeModels").mockResolvedValue([bedrockModel]);
 	});
@@ -72,6 +72,22 @@ describe("ListSessionsFilter", () => {
 			expect(onUpdate).toHaveBeenLastCalledWith(
 				`model:"${bedrockModel}" ${rangeQuery}`,
 			),
+		);
+	});
+
+	it("requests deleted providers so sessions recorded under them stay filterable", async () => {
+		const user = userEvent.setup({ skipHover: true });
+		renderWithAuth(
+			<ListSessionsFilterHarness onUpdate={vi.fn()} initialQuery="" />,
+		);
+
+		await user.click(await screen.findByRole("button", { name: "Filters" }));
+		await user.hover(await screen.findByRole("option", { name: "Provider" }));
+
+		await waitFor(() =>
+			expect(API.getAIProviders).toHaveBeenCalledWith({
+				include_deleted: true,
+			}),
 		);
 	});
 });

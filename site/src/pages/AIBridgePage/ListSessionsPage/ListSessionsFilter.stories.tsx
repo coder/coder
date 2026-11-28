@@ -1,17 +1,15 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { fn, screen, userEvent, within } from "storybook/test";
-import {
-	aiBridgeClientsKey,
-	aiBridgeModelsKey,
-	aiBridgeProvidersKey,
-} from "#/api/queries/aiBridge";
+import { aiBridgeClientsKey, aiBridgeModelsKey } from "#/api/queries/aiBridge";
+import { aiProvidersIncludingDeletedKey } from "#/api/queries/aiProviders";
 import { permittedOrganizationsKey } from "#/api/queries/organizations";
 import { usersKey } from "#/api/queries/users";
-import type { AIBridgeProvider } from "#/api/typesGenerated";
 import type { DateTimeRangeValue } from "#/components/DateTimeRangePicker/dateTimeRange";
 import type { UseFilterResult } from "#/components/Filter/Filter";
 import {
+	MockAIProviderAnthropic,
+	MockAIProviders,
 	MockDefaultOrganization,
 	MockOrganization2,
 	MockPermissions,
@@ -24,16 +22,6 @@ import {
 	withDashboardProvider,
 } from "#/testHelpers/storybook";
 import { ListSessionsFilter } from "./ListSessionsFilter";
-
-const mockProviders: AIBridgeProvider[] = [
-	{
-		name: "anthropic-prod",
-		type: "anthropic",
-		display_name: "Anthropic (prod)",
-		icon: "",
-	},
-	{ name: "openai-prod", type: "openai", display_name: "", icon: "" },
-];
 
 const timeRange: DateTimeRangeValue = {
 	start: new Date("2026-08-12T15:00:00Z"),
@@ -83,7 +71,7 @@ const meta: Meta<typeof ListSessionsFilterHarness> = {
 		user: MockUserOwner,
 		permissions: MockPermissions,
 		queries: [
-			{ key: aiBridgeProvidersKey, data: mockProviders },
+			{ key: aiProvidersIncludingDeletedKey, data: MockAIProviders },
 			{
 				key: aiBridgeClientsKey({ q: "", limit: 25 }),
 				data: ["claude-code", "cursor"],
@@ -115,7 +103,7 @@ export const Default: Story = {
 
 export const WithFilters: Story = {
 	args: {
-		initialQuery: `user:me provider_name:anthropic-prod client:claude-code model:"us.anthropic.claude-3-5-sonnet-v2:0" ${rangeQuery}`,
+		initialQuery: `user:me provider_name:${MockAIProviderAnthropic.name} client:claude-code model:"us.anthropic.claude-3-5-sonnet-v2:0" ${rangeQuery}`,
 	},
 };
 

@@ -1,8 +1,5 @@
-import {
-	aiBridgeClients,
-	aiBridgeModels,
-	aiBridgeProviders,
-} from "#/api/queries/aiBridge";
+import { aiBridgeClients, aiBridgeModels } from "#/api/queries/aiBridge";
+import { aiProvidersIncludingDeleted } from "#/api/queries/aiProviders";
 import { filterOptionsByText } from "#/components/Filter/FilterCombobox/filterQuery";
 import type { FilterOption } from "#/components/Filter/FilterCombobox/types";
 import { ProviderIcon } from "#/modules/aiModels/ProviderIcon";
@@ -17,9 +14,9 @@ export const getProviderFilterOptions = async (
 	queryClient: OptionsQueryClient,
 ): Promise<readonly FilterOption[]> => {
 	// The providers endpoint has no search, so filter here.
-	const providers = await queryClient.fetchQuery(aiBridgeProviders());
+	const providers = await queryClient.fetchQuery(aiProvidersIncludingDeleted());
 	const options = providers.map((provider) => ({
-		label: provider.display_name || provider.name,
+		label: provider.display_name,
 		value: provider.name,
 		startIcon: <ProviderIcon provider={provider.type} icon={provider.icon} />,
 	}));

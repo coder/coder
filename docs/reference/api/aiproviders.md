@@ -20,6 +20,12 @@ curl -X GET http://coder-server:8080/api/v2/ai/providers \
 
 Lists AI providers, including disabled ones. The `base_url`, `api_keys`, `settings`, and `status` fields are empty when the caller can't read AI provider configuration.
 
+### Parameters
+
+| Name              | In    | Type    | Required | Description                                                                                                                                                                    |
+|-------------------|-------|---------|----------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `include_deleted` | query | boolean | false    | Include deleted providers, which are returned without configuration. Each name appears once: its live provider if one exists, otherwise the most recently updated deleted one. |
+
 ### Example responses
 
 > 200 Response
@@ -36,6 +42,7 @@ Lists AI providers, including disabled ones. The `base_url`, `api_keys`, `settin
     ],
     "base_url": "string",
     "created_at": "2019-08-24T14:15:22Z",
+    "deleted": true,
     "display_name": "string",
     "enabled": true,
     "icon": "string",
@@ -72,6 +79,7 @@ Status Code **200**
 | `»» masked`      | string                                                               | false    |              |                                                        |
 | `» base_url`     | string                                                               | false    |              |                                                        |
 | `» created_at`   | string(date-time)                                                    | false    |              |                                                        |
+| `» deleted`      | boolean                                                              | false    |              |                                                        |
 | `» display_name` | string                                                               | false    |              |                                                        |
 | `» enabled`      | boolean                                                              | false    |              |                                                        |
 | `» icon`         | string                                                               | false    |              |                                                        |
@@ -143,6 +151,7 @@ curl -X POST http://coder-server:8080/api/v2/ai/providers \
   ],
   "base_url": "string",
   "created_at": "2019-08-24T14:15:22Z",
+  "deleted": true,
   "display_name": "string",
   "enabled": true,
   "icon": "string",
@@ -201,6 +210,7 @@ curl -X GET http://coder-server:8080/api/v2/ai/providers/{idOrName} \
   ],
   "base_url": "string",
   "created_at": "2019-08-24T14:15:22Z",
+  "deleted": true,
   "display_name": "string",
   "enabled": true,
   "icon": "string",
@@ -305,6 +315,7 @@ curl -X PATCH http://coder-server:8080/api/v2/ai/providers/{idOrName} \
   ],
   "base_url": "string",
   "created_at": "2019-08-24T14:15:22Z",
+  "deleted": true,
   "display_name": "string",
   "enabled": true,
   "icon": "string",

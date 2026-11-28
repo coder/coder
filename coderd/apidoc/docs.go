@@ -2722,34 +2722,6 @@ const docTemplate = `{
                 ]
             }
         },
-        "/api/v2/ai-gateway/providers": {
-            "get": {
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "AI Gateway"
-                ],
-                "summary": "List AI Gateway providers",
-                "operationId": "list-ai-gateway-providers",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/codersdk.AIBridgeProvider"
-                            }
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
-            }
-        },
         "/api/v2/ai-gateway/serve": {
             "get": {
                 "tags": [
@@ -2885,6 +2857,14 @@ const docTemplate = `{
                 ],
                 "summary": "List AI providers",
                 "operationId": "list-ai-providers",
+                "parameters": [
+                    {
+                        "type": "boolean",
+                        "description": "Include deleted providers, which are returned without configuration. Each name appears once: its live provider if one exists, otherwise the most recently updated deleted one.",
+                        "name": "include_deleted",
+                        "in": "query"
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -20167,23 +20147,6 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.AIBridgeProvider": {
-            "type": "object",
-            "properties": {
-                "display_name": {
-                    "type": "string"
-                },
-                "icon": {
-                    "type": "string"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "type": {
-                    "$ref": "#/definitions/codersdk.AIProviderType"
-                }
-            }
-        },
         "codersdk.AIBridgeProxyConfig": {
             "type": "object",
             "properties": {
@@ -20748,6 +20711,9 @@ const docTemplate = `{
                 "created_at": {
                     "type": "string",
                     "format": "date-time"
+                },
+                "deleted": {
+                    "type": "boolean"
                 },
                 "display_name": {
                     "type": "string"

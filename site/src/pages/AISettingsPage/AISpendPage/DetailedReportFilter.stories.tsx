@@ -42,7 +42,7 @@ const meta = {
 			MockGroup,
 			MockGroup2,
 		]);
-		spyOn(API, "getAIBridgeProviders").mockResolvedValue(MockAIProviders);
+		spyOn(API, "getAIProviders").mockResolvedValue(MockAIProviders);
 		spyOn(API, "getAIBridgeClients").mockResolvedValue([
 			"Claude Code",
 			"Codex",

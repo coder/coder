@@ -1,4 +1,4 @@
-import type { AIBridgeProvider } from "#/api/typesGenerated";
+import type { AIProvider } from "#/api/typesGenerated";
 import { ProviderIcon } from "#/modules/aiModels/ProviderIcon";
 import { ItemsBadge } from "./ItemsBadge";
 import { AIBridgeProviderIcon } from "./icons/AIBridgeProviderIcon";
@@ -7,7 +7,7 @@ import { getProviderDisplayName } from "./utils";
 type ProvidersBadgeProps = {
 	providers: readonly string[];
 	/** Configured providers by name; matches supply the label and icon. */
-	providersByName?: ReadonlyMap<string, AIBridgeProvider>;
+	providersByName?: ReadonlyMap<string, AIProvider>;
 };
 
 export const ProvidersBadge: React.FC<ProvidersBadgeProps> = ({
