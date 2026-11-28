@@ -53,6 +53,19 @@ export const chatProjectSummaries = () =>
 		refetchOnWindowFocus: true,
 	});
 
+/** Nested under chatProjectsKey, so project list invalidations reach it. */
+export const chatProjectMemberCountsKey = [
+	...chatProjectsKey,
+	"member-counts",
+] as const;
+
+/** How many users can use each project in chatProjects(), by project ID. */
+export const chatProjectMemberCounts = () =>
+	queryOptions({
+		queryKey: chatProjectMemberCountsKey,
+		queryFn: () => API.experimental.getChatProjectMemberCounts(),
+	});
+
 /** A summary with its project from chatProjects(). */
 export type ChatProjectWithSummary = TypesGen.ChatProjectSummary & {
 	readonly project: TypesGen.ChatProject;
@@ -306,6 +319,9 @@ export const setChatProjectRole = (queryClient: QueryClient) =>
 				queryClient.invalidateQueries({
 					queryKey: chatProjectACLKey(project.id),
 					exact: true,
+				}),
+				queryClient.invalidateQueries({
+					queryKey: chatProjectMemberCountsKey,
 				}),
 			]),
 	});

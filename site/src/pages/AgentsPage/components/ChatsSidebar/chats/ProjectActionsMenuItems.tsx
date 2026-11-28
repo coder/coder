@@ -22,6 +22,8 @@ type ProjectActionsMenuItemsProps = {
 	/** Adds a "New chat" item linking here. Omit on the project page itself. */
 	readonly projectPath?: To;
 	readonly onNewChatInPlace?: () => void;
+	/** Adds a "Pin" item. */
+	readonly onPin?: () => void;
 	/** Adds an "Unpin" item. */
 	readonly onUnpin?: () => void;
 	readonly permissions: ChatProjectPermissions;
@@ -42,12 +44,13 @@ export const ProjectActionsMenuItems: React.FC<
 	Separator,
 	projectPath,
 	onNewChatInPlace,
+	onPin,
 	onUnpin,
 	permissions,
 	onEdit,
 	onDelete,
 }) => {
-	const hasItemsAboveDelete = onUnpin || permissions.update;
+	const hasItemsAboveDelete = onPin || onUnpin || permissions.update;
 	return (
 		<>
 			{projectPath !== undefined && (
@@ -62,11 +65,12 @@ export const ProjectActionsMenuItems: React.FC<
 							New chat
 						</Link>
 					</Item>
-					{(onUnpin || hasProjectUpdateOrDeleteAction(permissions)) && (
-						<Separator />
-					)}
+					{(onPin ||
+						onUnpin ||
+						hasProjectUpdateOrDeleteAction(permissions)) && <Separator />}
 				</>
 			)}
+			{onPin && <Item onSelect={onPin}>Pin</Item>}
 			{onUnpin && <Item onSelect={onUnpin}>Unpin</Item>}
 			{permissions.update && <Item onSelect={onEdit}>Edit</Item>}
 			{permissions.delete && (
