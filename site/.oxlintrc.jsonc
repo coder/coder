@@ -33,6 +33,7 @@
 		"media-has-caption": "error",
 		"click-events-have-key-events": "error",
 		"no-noninteractive-tabindex": "error",
+		"interactive-supports-focus": "error",
 		"iframe-has-title": "error",
 
 		// --- complexity ---
@@ -226,8 +227,6 @@
 		// Effort = approximate work before enabling:
 		// small < medium < large < xl.
 		// ==========================================================
-		"interactive-supports-focus": "off", // a11y/useFocusableInteractive (small)
-
 		// Correctness category rules with existing violations.
 		"require-mock-type-parameters": "off", // (xl)
 		"prefer-tag-over-role": "off", // (large)

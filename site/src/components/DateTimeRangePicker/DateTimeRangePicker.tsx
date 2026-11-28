@@ -324,6 +324,7 @@ export const DateTimeRangePicker: React.FC<DateTimeRangePickerProps> = ({
 				<div className="flex">
 					{/* Quick picks. This list is the entire dropdown until the
 					    user expands the custom range panel. */}
+					{/* oxlint-disable-next-line jsx-a11y/interactive-supports-focus -- tabIndex must be omitted here; focus order should jump directly from the popover trigger to the role="radio" children, matching the behavior of a <select> element */}
 					<div
 						role="radiogroup"
 						aria-label="Quick ranges"
