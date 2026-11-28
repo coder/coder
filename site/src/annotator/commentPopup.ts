@@ -1,10 +1,15 @@
 import { el } from "./dom";
 import { elementLabel } from "./elementLabel";
-import { sendIcon } from "./icons";
+import { plusIcon, sendIcon } from "./icons";
+import { maxAnnotations } from "./protocol";
 
 type CommentPopupOptions = {
 	target: Element;
-	onSubmit(comment: string): void;
+	toolbar: HTMLElement;
+	// Comments already held back, which the next plain Send includes.
+	heldCount: number;
+	// `hold` is Shift+Send. Returns false when the batch cannot hold more.
+	onSubmit(comment: string, hold: boolean): boolean;
 	onCancel(): void;
 };
 
@@ -47,53 +52,99 @@ export function createCommentPopup(
 	cancel.textContent = "Cancel";
 	cancel.addEventListener("click", options.onCancel);
 
-	const send = el(doc, "button", "button", { type: "button", disabled: "" });
-	send.innerHTML = sendIcon;
-	send.append("Send");
+	// sentence-case-expect: Shift is the keyboard key name.
+	const limitMessage = `Up to ${maxAnnotations} comments per send. Send without Shift to submit this batch.`;
+	const limit = el(doc, "div", "popup-limit", {
+		id: "comment-limit",
+		role: "status",
+	});
+	const atLimit = options.heldCount >= maxAnnotations - 1;
+	if (atLimit) {
+		limit.textContent = limitMessage;
+	}
+	const send = el(doc, "button", "button", {
+		type: "button",
+		disabled: "",
+		"aria-describedby": "comment-limit",
+	});
+	if (!atLimit) {
+		send.dataset.tip = "Shift+click to hold this comment and pick more";
+	}
+	const setSendLabel = (shift: boolean) => {
+		const hold = shift && !atLimit;
+		send.innerHTML = hold ? plusIcon : sendIcon;
+		if (shift) {
+			// sentence-case-expect: Shift is the keyboard key name.
+			send.append(atLimit ? "Release Shift" : "Add");
+			return;
+		}
+		const count = options.heldCount;
+		send.append(count > 0 ? `Send ${count + 1}` : "Send");
+	};
+	setSendLabel(false);
 
-	const submit = () => {
+	const submit = (hold: boolean) => {
 		const comment = textarea.value.trim();
 		if (!comment) {
 			textarea.focus();
 			return;
 		}
-		options.onSubmit(comment);
+		if (!options.onSubmit(comment, hold)) {
+			limit.textContent = limitMessage;
+			textarea.focus({ preventScroll: true });
+		}
 	};
-	send.addEventListener("click", submit);
+	send.addEventListener("pointerenter", (event) =>
+		setSendLabel(event.shiftKey),
+	);
+	send.addEventListener("click", (event) => {
+		setSendLabel(event.shiftKey);
+		submit(event.shiftKey);
+	});
 	textarea.addEventListener("input", () => {
 		send.disabled = textarea.value.trim() === "";
 	});
 	textarea.addEventListener("keydown", (event) => {
 		if (event.key === "Enter" && !event.shiftKey) {
 			event.preventDefault();
-			submit();
+			submit(false);
 		}
 	});
+	// Holding Shift previews what the button will do.
+	const onShift = (event: KeyboardEvent) => setSendLabel(event.shiftKey);
+	element.addEventListener("keydown", onShift);
+	element.addEventListener("keyup", onShift);
 
 	const actions = el(doc, "div", "popup-actions");
 	actions.append(cancel, send);
-	element.append(title, textarea, actions);
+	element.append(title, textarea, limit, actions);
 
 	return {
 		element,
 		focus: () => textarea.focus({ preventScroll: true }),
 		reposition: () => {
 			const target = options.target.getBoundingClientRect();
-			const { width, height } = element.getBoundingClientRect();
+			const { width } = element.getBoundingClientRect();
 			const left = Math.max(
 				popupGap,
 				Math.min(target.left, win.innerWidth - width - popupGap),
 			);
+			const toolbar = options.toolbar.getBoundingClientRect();
+			const bottom =
+				left < toolbar.right + popupGap &&
+				left + width > toolbar.left - popupGap
+					? Math.min(win.innerHeight, toolbar.top) - popupGap
+					: win.innerHeight - popupGap;
+			// Keep the Stop control reachable even when the batch helper wraps.
+			element.style.maxHeight = `${Math.max(0, bottom - popupGap)}px`;
+			const { height } = element.getBoundingClientRect();
 			const below = target.bottom + popupGap;
 			const top =
-				below + height <= win.innerHeight - popupGap
+				below + height <= bottom
 					? below
 					: Math.max(
 							popupGap,
-							Math.min(
-								target.top - height - popupGap,
-								win.innerHeight - height - popupGap,
-							),
+							Math.min(target.top - height - popupGap, bottom - height),
 						);
 			element.style.left = `${left}px`;
 			element.style.top = `${top}px`;

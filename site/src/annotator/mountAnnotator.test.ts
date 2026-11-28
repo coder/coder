@@ -38,13 +38,21 @@ function overlayRegion(role: "dialog" | "toolbar"): HTMLElement {
 	return region;
 }
 
-async function submitComment(comment: string) {
+async function submitComment(comment: string, hold = false) {
+	const user = userEvent.setup();
 	const controls = within(overlayRegion("dialog"));
-	await userEvent.type(
+	await user.type(
 		controls.getByRole("textbox", { name: "Annotation comment" }),
 		comment,
 	);
-	await userEvent.click(controls.getByRole("button", { name: "Send" }));
+	const send = controls.getByRole("button", { name: /^Send(?: \d+)?$/ });
+	if (hold) {
+		await user.keyboard("{Shift>}");
+	}
+	await user.click(send);
+	if (hold) {
+		await user.keyboard("{/Shift}");
+	}
 }
 
 beforeEach(() => {
@@ -228,5 +236,89 @@ describe("mountAnnotator", () => {
 		await userEvent.click(screen.getByRole("button", { name: "Save page" }));
 		expect(pageClick).toHaveBeenCalledTimes(2);
 		expect(pageHost.isConnected).toBe(true);
+	});
+
+	it("sends held comments together with the next Send", async () => {
+		document.body.innerHTML =
+			'<h1 id="title">Hi</h1><button id="save">Save</button>';
+		const onSubmit = vi.fn<(submission: AnnotationSubmission) => void>();
+		const handle = mount({ onSubmit });
+		handle.setPicking(true);
+
+		await userEvent.click(screen.getByRole("heading", { name: "Hi" }));
+		await submitComment("Bigger", true);
+		expect(onSubmit).not.toHaveBeenCalled();
+		expect(handle.getState().picking).toBe(true);
+
+		await userEvent.click(screen.getByRole("button", { name: "Save" }));
+		await submitComment("Primary");
+		expect(onSubmit).toHaveBeenCalledTimes(1);
+		expect(onSubmit.mock.calls[0]?.[0].annotations).toMatchObject([
+			{ comment: "Bigger", element: { selector: "#title" } },
+			{ comment: "Primary", element: { selector: "#save" } },
+		]);
+		await userEvent.click(screen.getByRole("button", { name: "Save" }));
+		await submitComment("Another change");
+		expect(onSubmit.mock.calls[1]?.[0].annotations).toMatchObject([
+			{ comment: "Another change" },
+		]);
+	});
+
+	it("keeps the current draft sendable when the batch reaches the protocol limit", async () => {
+		document.body.innerHTML = '<button type="button">Pick</button>';
+		const onSubmit = vi.fn<(submission: AnnotationSubmission) => void>();
+		const handle = mount({ onSubmit });
+		handle.setPicking(true);
+		const target = screen.getByRole("button", { name: "Pick" });
+		for (const text of ["One", "Two", "Three", "Four"]) {
+			await userEvent.click(target);
+			await submitComment(text, true);
+		}
+		expect(onSubmit).not.toHaveBeenCalled();
+		await userEvent.click(target);
+		await submitComment("Final", true);
+		expect(onSubmit).not.toHaveBeenCalled();
+
+		await userEvent.keyboard("{Enter}");
+		expect(onSubmit).toHaveBeenCalledTimes(1);
+		const submission = onSubmit.mock.calls[0]?.[0];
+		expect(submission?.annotations.map(({ comment }) => comment)).toEqual([
+			"One",
+			"Two",
+			"Three",
+			"Four",
+			"Final",
+		]);
+		expect(
+			parseAnnotatorToHostMessage({
+				type: "coder-annotator:submit",
+				...submission,
+			}),
+		).toMatchObject({
+			annotations: submission?.annotations,
+		});
+	});
+
+	it("discards held comments from the toolbar badge", async () => {
+		document.body.innerHTML =
+			'<h1 id="title">Hi</h1><button id="save">Save</button>';
+		const onSubmit = vi.fn<(submission: AnnotationSubmission) => void>();
+		const handle = mount({ onSubmit });
+		handle.setPicking(true);
+		const title = screen.getByRole("heading", { name: "Hi" });
+		await userEvent.click(title);
+		await submitComment("Bigger", true);
+		await userEvent.click(
+			within(overlayRegion("toolbar")).getByRole("button", {
+				name: "Discard held comments",
+			}),
+		);
+		expect(title.hasAttribute("data-coder-annotation-id")).toBe(false);
+		expect(onSubmit).not.toHaveBeenCalled();
+		await userEvent.click(screen.getByRole("button", { name: "Save" }));
+		await submitComment("Primary");
+		expect(onSubmit.mock.calls[0]?.[0].annotations).toMatchObject([
+			{ comment: "Primary", element: { selector: "#save" } },
+		]);
 	});
 });

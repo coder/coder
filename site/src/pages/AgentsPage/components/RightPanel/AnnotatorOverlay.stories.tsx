@@ -96,6 +96,60 @@ type Story = StoryObj<typeof meta>;
 
 export const Idle: Story = {};
 
+async function holdComment(target: HTMLElement, text: string) {
+	await userEvent.click(target);
+	const controls = commentControls();
+	await userEvent.type(
+		controls.getByRole("textbox", { name: "Annotation comment" }),
+		text,
+	);
+	// Storybook's userEvent does not carry held modifiers into shadow-root clicks.
+	controls.getByRole("button", { name: /^Send/ }).dispatchEvent(
+		new MouseEvent("click", {
+			bubbles: true,
+			cancelable: true,
+			shiftKey: true,
+		}),
+	);
+}
+
+export const HoldingComments: Story = {
+	args: { picking: true },
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await holdComment(
+			canvas.getByRole("heading", { name: "Acme Settings" }),
+			"Shorter title",
+		);
+		await userEvent.click(canvas.getByRole("button", { name: "Save" }));
+		await userEvent.type(
+			commentControls().getByRole("textbox", { name: "Annotation comment" }),
+			"Make this primary",
+		);
+	},
+};
+
+export const BatchLimit: Story = {
+	args: { picking: true },
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const targets = [
+			canvas.getByRole("heading", { name: "Acme Settings" }),
+			canvas.getByRole("link", { name: "General" }),
+			canvas.getByRole("link", { name: "Billing" }),
+			canvas.getByRole("textbox", { name: "Display name" }),
+		];
+		for (const target of targets) {
+			await holdComment(target, "Update this element");
+		}
+		await userEvent.click(canvas.getByRole("button", { name: "Save" }));
+		await userEvent.type(
+			commentControls().getByRole("textbox", { name: "Annotation comment" }),
+			"Make this primary",
+		);
+	},
+};
+
 export const FirstRunHint: Story = {
 	args: { picking: true, hint: true },
 };
@@ -143,7 +197,7 @@ export const PickingAtRightEdge: Story = {
 	},
 };
 
-function commentBox(): HTMLElement {
+function commentControls() {
 	const shadow = document.getElementById(annotatorHostId)?.shadowRoot;
 	const dialog = Array.from(shadow?.children ?? []).find(
 		(element) => element.getAttribute("role") === "dialog",
@@ -151,7 +205,7 @@ function commentBox(): HTMLElement {
 	if (!(dialog instanceof HTMLElement)) {
 		throw new Error("The annotation dialog did not open");
 	}
-	return within(dialog).getByRole("textbox", { name: "Annotation comment" });
+	return within(dialog);
 }
 
 export const CommentPopup: Story = {
@@ -159,7 +213,10 @@ export const CommentPopup: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(canvas.getByRole("button", { name: "Save" }));
-		await userEvent.type(commentBox(), "Make this the primary action");
+		await userEvent.type(
+			commentControls().getByRole("textbox", { name: "Annotation comment" }),
+			"Make this the primary action",
+		);
 	},
 };
 
@@ -180,7 +237,10 @@ export const CommentPopupAtRightEdge: Story = {
 		await userEvent.click(
 			within(canvasElement).getByRole("button", { name: "Right edge action" }),
 		);
-		await userEvent.type(commentBox(), "Keep the dialog inside the preview");
+		await userEvent.type(
+			commentControls().getByRole("textbox", { name: "Annotation comment" }),
+			"Keep the dialog inside the preview",
+		);
 	},
 };
 
@@ -201,7 +261,10 @@ export const CommentPopupAboveTarget: Story = {
 		await userEvent.click(
 			within(canvasElement).getByRole("button", { name: "Bottom edge action" }),
 		);
-		await userEvent.type(commentBox(), "Open above this action");
+		await userEvent.type(
+			commentControls().getByRole("textbox", { name: "Annotation comment" }),
+			"Open above this action",
+		);
 	},
 };
 
@@ -210,7 +273,10 @@ export const SentOnSave: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(canvas.getByRole("button", { name: "Save" }));
-		await userEvent.type(commentBox(), "Use the primary style{enter}");
+		await userEvent.type(
+			commentControls().getByRole("textbox", { name: "Annotation comment" }),
+			"Use the primary style{enter}",
+		);
 	},
 };
 
