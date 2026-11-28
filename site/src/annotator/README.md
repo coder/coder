@@ -10,7 +10,9 @@ names, an allowlisted opening tag, and the visible text.
 
 The overlay runs inside pages we do not control, so it is plain
 TypeScript with no framework and no dependencies: every import in this
-directory is relative.
+directory is relative. `vite.annotator.config.mts` builds `main.ts` into
+a single self-contained `out/annotator.js` next to the dashboard's own
+output, and that build fails on any import that is not relative.
 
 The dashboard side lives in `src/pages/AgentsPage` and imports
 `#/annotator/protocol` (message types and the bounded parser) and
