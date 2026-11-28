@@ -84,6 +84,25 @@ func TestParse(t *testing.T) {
 			},
 		},
 		{
+			Name: "variable-validation-error-message-interpolation",
+			Files: map[string]string{
+				"main.tf": `variable "A" {
+				validation {
+					condition = var.A == "value"
+					error_message = "${var.A} is not allowed"
+				}
+			}`,
+			},
+			Response: &proto.ParseComplete{
+				TemplateVariables: []*proto.TemplateVariable{
+					{
+						Name:     "A",
+						Required: true,
+					},
+				},
+			},
+		},
+		{
 			Name: "bad-syntax",
 			Files: map[string]string{
 				"main.tf": "a;sd;ajsd;lajsd;lasjdf;a",
@@ -365,6 +384,82 @@ func TestParse(t *testing.T) {
 				  `,
 			},
 			ParseErrorContains: `"tags" attribute is required by coder_workspace_tags`,
+		},
+		{
+			Name: "module-source-and-version-from-const-variable-and-local",
+			Files: map[string]string{
+				"main.tf": `variable "registry" {
+					type    = string
+					const   = true
+					default = "registry.example.com"
+				}
+				locals {
+					module_version = "1.2.3"
+				}
+				module "dynamic" {
+					source  = "${var.registry}/example/dynamic/coder"
+					version = local.module_version
+				}
+				module "static" {
+					source = "./modules/static"
+				}
+				data "coder_workspace_tags" "tags" {
+					tags = {
+						"cluster" = "developers"
+					}
+				}`,
+			},
+			Response: &proto.ParseComplete{
+				TemplateVariables: []*proto.TemplateVariable{
+					{
+						Name:         "registry",
+						Type:         "string",
+						DefaultValue: "registry.example.com",
+					},
+				},
+				WorkspaceTags: map[string]string{
+					"cluster": `"developers"`,
+				},
+			},
+		},
+		{
+			Name: "module-source-not-a-string",
+			Files: map[string]string{
+				"main.tf": `module "first" {
+					source = ["./modules/local"]
+				}`,
+			},
+			ParseErrorContains: "Unsuitable value",
+		},
+		{
+			Name: "required-providers-from-const-variable-and-local",
+			Files: map[string]string{
+				"main.tf": `variable "provider_version" {
+					type    = string
+					const   = true
+					default = "2.8.0"
+				}
+				locals {
+					provider_source = "coder/coder"
+				}
+				terraform {
+					required_providers {
+						coder = {
+							source  = local.provider_source
+							version = var.provider_version
+						}
+					}
+				}`,
+			},
+			Response: &proto.ParseComplete{
+				TemplateVariables: []*proto.TemplateVariable{
+					{
+						Name:         "provider_version",
+						Type:         "string",
+						DefaultValue: "2.8.0",
+					},
+				},
+			},
 		},
 		{
 			Name: "empty-main",

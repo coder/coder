@@ -5,8 +5,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"os"
+	"runtime/debug"
 	"slices"
 	"sort"
 	"strconv"
@@ -70,12 +72,52 @@ func New(workdir string, opts ...Option) (*Parser, tfconfig.Diagnostics) {
 
 	var diags tfconfig.Diagnostics
 	if p.module == nil {
-		m, ds := tfconfig.LoadModule(workdir)
+		m, ds := loadModule(p.logger, workdir)
 		diags = ds
 		p.module = m
 	}
 
 	return &p, diags
+}
+
+// loadModule returns a tfconfig panic as an error diagnostic, because the
+// provisioner runs Parse in a goroutine that does not recover panics.
+func loadModule(logger slog.Logger, workdir string) (m *tfconfig.Module, diags tfconfig.Diagnostics) {
+	defer func() {
+		if r := recover(); r != nil {
+			// New has no context to pass along.
+			logger.Warn(context.Background(), "recovered panic while loading terraform module",
+				slog.F("panic", r),
+				slog.F("stack", string(debug.Stack())),
+			)
+			m = tfconfig.NewModule(workdir)
+			diags = tfconfig.Diagnostics{{
+				Severity: tfconfig.DiagError,
+				Summary:  "Failed to load module",
+				Detail: fmt.Sprintf("The module could not be parsed: %v. A likely cause is a Terraform Stacks block, "+
+					"such as \"component\" or a top-level \"required_providers\", which is not valid in a .tf or .tf.json file.", r),
+			}}
+		}
+	}()
+	return tfconfig.LoadModuleFromFilesystem(moduleFS{tfconfig.NewOsFs()}, workdir)
+}
+
+// moduleFS lists only the files Terraform loads for a module. tfconfig also
+// loads Terraform Stacks files and panics on their Stacks-only blocks, and
+// later versions may add more suffixes.
+type moduleFS struct {
+	tfconfig.FS
+}
+
+func (f moduleFS) ReadDir(dirname string) ([]os.FileInfo, error) {
+	infos, err := f.FS.ReadDir(dirname)
+	if err != nil {
+		return nil, err
+	}
+	return slices.DeleteFunc(infos, func(info os.FileInfo) bool {
+		name := info.Name()
+		return !strings.HasSuffix(name, ".tf") && !strings.HasSuffix(name, ".tf.json")
+	}), nil
 }
 
 // WorkspaceTags looks for all coder_workspace_tags datasource in the module

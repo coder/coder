@@ -30,7 +30,7 @@ Coder's backend is built using a collection of robust, modern Go libraries and i
 
 * [go-chi/chi](https://github.com/go-chi/chi): lightweight HTTP router for building RESTful APIs in Go
 * [golang-migrate/migrate](https://github.com/golang-migrate/migrate): manages database schema migrations across environments
-* [coder/terraform-config-inspect](https://github.com/coder/terraform-config-inspect) *(forked)*: used for parsing and analyzing Terraform configurations, forked to include [PR #74](https://github.com/hashicorp/terraform-config-inspect/pull/74)
+* [hashicorp/terraform-config-inspect](https://github.com/hashicorp/terraform-config-inspect): used for parsing and analyzing Terraform configurations
 * [coder/pq](https://github.com/coder/pq) *(forked)*: PostgreSQL driver forked to support rotating authentication tokens via `driver.Connector`
 * [coder/tailscale](https://github.com/coder/tailscale) *(forked)*: enables secure, peer-to-peer connectivity, forked to apply internal patches pending upstreaming
 * [coder/wireguard-go](https://github.com/coder/wireguard-go) *(forked)*: WireGuard networking implementation, forked to fix a data race and adopt the latest gVisor changes

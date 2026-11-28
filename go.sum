@@ -355,8 +355,6 @@ github.com/coder/ssh v0.0.0-20261124114532-467fa35c3f9e h1:fE1S3b6RCCiV3gN9TPlV2
 github.com/coder/ssh v0.0.0-20261124114532-467fa35c3f9e/go.mod h1:aGQbuCLyhRLMzZF067xc84Lh7JDs1FKwCmF1Crl9dxQ=
 github.com/coder/tailscale v1.1.1-0.20261027205359-0fde3fc36b30 h1:TK4MPsYs7y46V1P3ayL/lrIs7dssyTMs1vq424ZKtb4=
 github.com/coder/tailscale v1.1.1-0.20261027205359-0fde3fc36b30/go.mod h1:VBQbGaS5sjdbJ1dBNoF19LlCcTFbiubNu15ZVReWPpw=
-github.com/coder/terraform-config-inspect v0.0.0-20250107175719-6d06d90c630e h1:JNLPDi2P73laR1oAclY6jWzAbucf70ASAvf5mh2cME0=
-github.com/coder/terraform-config-inspect v0.0.0-20250107175719-6d06d90c630e/go.mod h1:Gz/z9Hbn+4KSp8A2FBtNszfLSdT2Tn/uAKGuVqqWmDI=
 github.com/coder/terraform-provider-coder/v2 v2.20.0 h1:fGZydUV8TKQ8sOd9RlMOpVMwhk9QH4aTvpOQUTiFWvk=
 github.com/coder/terraform-provider-coder/v2 v2.20.0/go.mod h1:TLHOsPHY5iOdTVK2twRtdGJ7pd9lQDyW7y9OJhnlOVU=
 github.com/coder/trivy v0.0.0-20261026151418-65abc04915bd h1:jk0mHRZDV/1Ip+ahmPxuHL1CcXW9gg+2KapjZts7b1o=
@@ -727,6 +725,8 @@ github.com/hashicorp/hcl/v2 v2.25.0 h1:HmmQVYRny4MaBo4b20TjmL46wyuUxpnMWkPZ4+NTb
 github.com/hashicorp/hcl/v2 v2.25.0/go.mod h1:vR+FKETxoZAmRlHgFfKmuqivj+C4Izm/c66XkmZ3r7M=
 github.com/hashicorp/logutils v1.0.0 h1:dLEQVugN8vlakKOUE3ihGLTZJRB4j+M2cdTm/ORI65Y=
 github.com/hashicorp/logutils v1.0.0/go.mod h1:QIAnNjmIWmVIIkWDTG1z5v++HQmx9WQRO+LraFDTW64=
+github.com/hashicorp/terraform-config-inspect v0.0.0-20260904064934-75d64de68c31 h1:EuBQLv86oPLfX2cnLOa0jR/5E4i/3MoNMcd6Fqdeg6E=
+github.com/hashicorp/terraform-config-inspect v0.0.0-20260904064934-75d64de68c31/go.mod h1:Gz/z9Hbn+4KSp8A2FBtNszfLSdT2Tn/uAKGuVqqWmDI=
 github.com/hashicorp/terraform-exec v0.25.1 h1:PRutYRGM8pixV3B8812NYoBK5O+yuf3qcB/70KFKGiU=
 github.com/hashicorp/terraform-exec v0.25.1/go.mod h1:+izOYrs9sKMQK4OYvGDnrSSJHY/pm4e4eXFqSL2Q5mA=
 github.com/hashicorp/terraform-json v0.29.0 h1:ZggVL0YzGj5zdbafX4+rDcROM7EvVU0eXlIMkHieptI=
