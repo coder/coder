@@ -94,6 +94,25 @@ type WorkspaceBuild struct {
 	MatchedProvisioners     *MatchedProvisioners `json:"matched_provisioners,omitempty" wsrelated:"latest_build.job"`
 	TemplateVersionPresetID *uuid.UUID           `json:"template_version_preset_id" format:"uuid" wsrelated:"latest_build"`
 	HasExternalAgent        *bool                `json:"has_external_agent,omitempty" wsrelated:"latest_build"`
+	// DeadlineChange explains the last change to Deadline. Servers that predate
+	// it omit it.
+	DeadlineChange *WorkspaceBuildDeadlineChange `json:"deadline_change,omitempty" wsrelated:"latest_build"`
+}
+
+// WorkspaceBuildDeadlineChange explains the last change to a build's deadline.
+type WorkspaceBuildDeadlineChange struct {
+	// Reason is why the deadline last changed. Treat unrecognized values as
+	// unknown.
+	Reason WorkspaceBuildDeadlineReason `json:"reason"`
+	// ChangedAt is when the deadline last changed. It is null when the time is
+	// unknown.
+	ChangedAt *time.Time `json:"changed_at" format:"date-time"`
+	// ChangedBy is the user who made the change. It is null when no user made
+	// it or the user is unknown.
+	ChangedBy *MinimalUser `json:"changed_by"`
+	// Sources is the activity that last extended the deadline, busiest first.
+	// It is empty unless Reason is "activity". Ignore unrecognized types.
+	Sources []WorkspaceBuildDeadlineSource `json:"sources"`
 }
 
 // WorkspaceBuildDeadlineSourceType identifies activity that changed a deadline.
@@ -113,6 +132,28 @@ const (
 	// chat uploading a file to the workspace.
 	WorkspaceBuildDeadlineSourceTypeChatWorkspaceUpload WorkspaceBuildDeadlineSourceType = "chat_workspace_upload"
 )
+
+// WorkspaceBuildDeadlineSource is one kind of activity that extended a
+// deadline.
+type WorkspaceBuildDeadlineSource struct {
+	// Type is the kind of activity.
+	Type WorkspaceBuildDeadlineSourceType `json:"type"`
+	// Method is how an app source connects to the workspace. It is only set
+	// for app sources.
+	Method ConnectionLogMethod `json:"method,omitempty"`
+	// AppName is the normalized app name, such as "ssh". It is only set for
+	// app sources without a workspace app.
+	AppName string `json:"app_name,omitempty"`
+	// AppID is the workspace app. It is only set for app sources with the
+	// workspace_app method.
+	AppID *uuid.UUID `json:"app_id,omitempty" format:"uuid"`
+	// AgentID is the agent that reported the activity. It is set for app and
+	// connection sources.
+	AgentID *uuid.UUID `json:"agent_id,omitempty" format:"uuid"`
+	// DisplayName is a human-readable label, such as "VS Code". It is not a
+	// stable identifier.
+	DisplayName string `json:"display_name"`
+}
 
 // WorkspaceResource describes resources used to create a workspace, for instance:
 // containers, images, volumes.

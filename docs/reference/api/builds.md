@@ -36,6 +36,26 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
   "created_at": "2019-08-24T14:15:22Z",
   "daily_cost": 0,
   "deadline": "2019-08-24T14:15:22Z",
+  "deadline_change": {
+    "changed_at": "2019-08-24T14:15:22Z",
+    "changed_by": {
+      "avatar_url": "http://example.com",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "name": "string",
+      "username": "string"
+    },
+    "reason": "unknown",
+    "sources": [
+      {
+        "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
+        "app_id": "affd1d10-9538-4fc8-9e0b-4594a28c1335",
+        "app_name": "string",
+        "display_name": "string",
+        "method": "ssh",
+        "type": "app"
+      }
+    ]
+  },
   "has_external_agent": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
@@ -299,6 +319,26 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild} \
   "created_at": "2019-08-24T14:15:22Z",
   "daily_cost": 0,
   "deadline": "2019-08-24T14:15:22Z",
+  "deadline_change": {
+    "changed_at": "2019-08-24T14:15:22Z",
+    "changed_by": {
+      "avatar_url": "http://example.com",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "name": "string",
+      "username": "string"
+    },
+    "reason": "unknown",
+    "sources": [
+      {
+        "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
+        "app_id": "affd1d10-9538-4fc8-9e0b-4594a28c1335",
+        "app_name": "string",
+        "display_name": "string",
+        "method": "ssh",
+        "type": "app"
+      }
+    ]
+  },
   "has_external_agent": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
@@ -1148,6 +1188,26 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/sta
   "created_at": "2019-08-24T14:15:22Z",
   "daily_cost": 0,
   "deadline": "2019-08-24T14:15:22Z",
+  "deadline_change": {
+    "changed_at": "2019-08-24T14:15:22Z",
+    "changed_by": {
+      "avatar_url": "http://example.com",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "name": "string",
+      "username": "string"
+    },
+    "reason": "unknown",
+    "sources": [
+      {
+        "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
+        "app_id": "affd1d10-9538-4fc8-9e0b-4594a28c1335",
+        "app_name": "string",
+        "display_name": "string",
+        "method": "ssh",
+        "type": "app"
+      }
+    ]
+  },
   "has_external_agent": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
@@ -1520,6 +1580,26 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
     "created_at": "2019-08-24T14:15:22Z",
     "daily_cost": 0,
     "deadline": "2019-08-24T14:15:22Z",
+    "deadline_change": {
+      "changed_at": "2019-08-24T14:15:22Z",
+      "changed_by": {
+        "avatar_url": "http://example.com",
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "name": "string",
+        "username": "string"
+      },
+      "reason": "unknown",
+      "sources": [
+        {
+          "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
+          "app_id": "affd1d10-9538-4fc8-9e0b-4594a28c1335",
+          "app_name": "string",
+          "display_name": "string",
+          "method": "ssh",
+          "type": "app"
+        }
+      ]
+    },
     "has_external_agent": true,
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
@@ -1764,6 +1844,21 @@ Status Code **200**
 | `» created_at`                        | string(date-time)                                                                                                  | false    |              |                                                                                                                                                                                                                                                                        |
 | `» daily_cost`                        | integer                                                                                                            | false    |              |                                                                                                                                                                                                                                                                        |
 | `» deadline`                          | string(date-time)                                                                                                  | false    |              |                                                                                                                                                                                                                                                                        |
+| `» deadline_change`                   | [codersdk.WorkspaceBuildDeadlineChange](schemas.md#codersdkworkspacebuilddeadlinechange)                           | false    |              | Deadline change explains the last change to Deadline. Servers that predate it omit it.                                                                                                                                                                                 |
+| `»» changed_at`                       | string(date-time)                                                                                                  | false    |              | Changed at is when the deadline last changed. It is null when the time is unknown.                                                                                                                                                                                     |
+| `»» changed_by`                       | [codersdk.MinimalUser](schemas.md#codersdkminimaluser)                                                             | false    |              | Changed by is the user who made the change. It is null when no user made it or the user is unknown.                                                                                                                                                                    |
+| `»»» avatar_url`                      | string(uri)                                                                                                        | false    |              |                                                                                                                                                                                                                                                                        |
+| `»»» id`                              | string(uuid)                                                                                                       | true     |              |                                                                                                                                                                                                                                                                        |
+| `»»» name`                            | string                                                                                                             | false    |              |                                                                                                                                                                                                                                                                        |
+| `»»» username`                        | string                                                                                                             | true     |              |                                                                                                                                                                                                                                                                        |
+| `»» reason`                           | [codersdk.WorkspaceBuildDeadlineReason](schemas.md#codersdkworkspacebuilddeadlinereason)                           | false    |              | Reason is why the deadline last changed. Treat unrecognized values as unknown.                                                                                                                                                                                         |
+| `»» sources`                          | array                                                                                                              | false    |              | Sources is the activity that last extended the deadline, busiest first. It is empty unless Reason is "activity". Ignore unrecognized types.                                                                                                                            |
+| `»»» agent_id`                        | string(uuid)                                                                                                       | false    |              | Agent ID is the agent that reported the activity. It is set for app and connection sources.                                                                                                                                                                            |
+| `»»» app_id`                          | string(uuid)                                                                                                       | false    |              | App ID is the workspace app. It is only set for app sources with the workspace_app method.                                                                                                                                                                             |
+| `»»» app_name`                        | string                                                                                                             | false    |              | App name is the normalized app name, such as "ssh". It is only set for app sources without a workspace app.                                                                                                                                                            |
+| `»»» display_name`                    | string                                                                                                             | false    |              | Display name is a human-readable label, such as "VS Code". It is not a stable identifier.                                                                                                                                                                              |
+| `»»» method`                          | [codersdk.ConnectionLogMethod](schemas.md#codersdkconnectionlogmethod)                                             | false    |              | Method is how an app source connects to the workspace. It is only set for app sources.                                                                                                                                                                                 |
+| `»»» type`                            | [codersdk.WorkspaceBuildDeadlineSourceType](schemas.md#codersdkworkspacebuilddeadlinesourcetype)                   | false    |              | Type is the kind of activity.                                                                                                                                                                                                                                          |
 | `» has_external_agent`                | boolean                                                                                                            | false    |              |                                                                                                                                                                                                                                                                        |
 | `» id`                                | string(uuid)                                                                                                       | false    |              |                                                                                                                                                                                                                                                                        |
 | `» initiator_id`                      | string(uuid)                                                                                                       | false    |              |                                                                                                                                                                                                                                                                        |
@@ -1941,11 +2036,12 @@ Status Code **200**
 
 | Property                     | Value(s)                                                                                                                                                                                                                                                         |
 |------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `reason`                     | `activity`, `autodelete`, `autostart`, `autostop`, `autostop_disabled`, `build`, `cli`, `dashboard`, `dormancy`, `initiator`, `jetbrains_connection`, `ssh_connection`, `template_schedule`, `unknown`, `user_changed`, `vscode_connection`                      |
+| `method`                     | `port_forwarding`, `reconnecting_pty`, `ssh`, `tunnel`, `workspace_app`                                                                                                                                                                                          |
+| `type`                       | `app`, `chat_heartbeat`, `chat_workspace_upload`, `connection`, `template_version_dry_run`, `template_version_import`, `workspace_build`                                                                                                                         |
 | `error_code`                 | `INSUFFICIENT_QUOTA`, `MISSING_TEMPLATE_PARAMETER`, `REQUIRED_TEMPLATE_VARIABLES`                                                                                                                                                                                |
 | `workspace_build_transition` | `delete`, `start`, `stop`                                                                                                                                                                                                                                        |
 | `status`                     | `canceled`, `canceling`, `connected`, `connecting`, `deleted`, `deleting`, `disconnected`, `exit_failure`, `failed`, `ok`, `pending`, `pipes_left_open`, `running`, `skipped`, `starting`, `stopped`, `stopping`, `succeeded`, `timed_out`, `timeout`, `unknown` |
-| `type`                       | `template_version_dry_run`, `template_version_import`, `workspace_build`                                                                                                                                                                                         |
-| `reason`                     | `autodelete`, `autostart`, `autostop`, `cli`, `dashboard`, `dormancy`, `initiator`, `jetbrains_connection`, `ssh_connection`, `vscode_connection`                                                                                                                |
 | `health`                     | `disabled`, `healthy`, `initializing`, `unhealthy`                                                                                                                                                                                                               |
 | `open_in`                    | `slim-window`, `tab`                                                                                                                                                                                                                                             |
 | `sharing_level`              | `authenticated`, `organization`, `owner`, `public`                                                                                                                                                                                                               |
@@ -2030,6 +2126,26 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
   "created_at": "2019-08-24T14:15:22Z",
   "daily_cost": 0,
   "deadline": "2019-08-24T14:15:22Z",
+  "deadline_change": {
+    "changed_at": "2019-08-24T14:15:22Z",
+    "changed_by": {
+      "avatar_url": "http://example.com",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "name": "string",
+      "username": "string"
+    },
+    "reason": "unknown",
+    "sources": [
+      {
+        "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
+        "app_id": "affd1d10-9538-4fc8-9e0b-4594a28c1335",
+        "app_name": "string",
+        "display_name": "string",
+        "method": "ssh",
+        "type": "app"
+      }
+    ]
+  },
   "has_external_agent": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",

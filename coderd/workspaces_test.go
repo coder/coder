@@ -3682,6 +3682,9 @@ func TestWorkspaceExtend(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, otherAdmin.Username, deleted.DeadlineChangedByUsername)
 	require.Equal(t, replaced.DeadlineChangedBy, deleted.DeadlineChangedBy)
+	presented, err := client.Workspace(ctx, workspace.ID)
+	require.NoError(t, err)
+	require.Equal(t, otherAdmin.Username, presented.LatestBuild.DeadlineChange.ChangedBy.Username)
 
 	// Zero time should fail
 	err = client.PutExtendWorkspace(ctx, workspace.ID, codersdk.PutExtendWorkspaceRequest{

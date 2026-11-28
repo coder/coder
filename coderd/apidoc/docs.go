@@ -36356,6 +36356,14 @@ const docTemplate = `{
                     "type": "string",
                     "format": "date-time"
                 },
+                "deadline_change": {
+                    "description": "DeadlineChange explains the last change to Deadline. Servers that predate\nit omit it.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.WorkspaceBuildDeadlineChange"
+                        }
+                    ]
+                },
                 "has_external_agent": {
                     "type": "boolean"
                 },
@@ -36429,6 +36437,112 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
+        },
+        "codersdk.WorkspaceBuildDeadlineChange": {
+            "type": "object",
+            "properties": {
+                "changed_at": {
+                    "description": "ChangedAt is when the deadline last changed. It is null when the time is\nunknown.",
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "changed_by": {
+                    "description": "ChangedBy is the user who made the change. It is null when no user made\nit or the user is unknown.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.MinimalUser"
+                        }
+                    ]
+                },
+                "reason": {
+                    "description": "Reason is why the deadline last changed. Treat unrecognized values as\nunknown.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.WorkspaceBuildDeadlineReason"
+                        }
+                    ]
+                },
+                "sources": {
+                    "description": "Sources is the activity that last extended the deadline, busiest first.\nIt is empty unless Reason is \"activity\". Ignore unrecognized types.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.WorkspaceBuildDeadlineSource"
+                    }
+                }
+            }
+        },
+        "codersdk.WorkspaceBuildDeadlineReason": {
+            "type": "string",
+            "enum": [
+                "unknown",
+                "build",
+                "activity",
+                "user_changed",
+                "autostop_disabled",
+                "template_schedule"
+            ],
+            "x-enum-varnames": [
+                "WorkspaceBuildDeadlineReasonUnknown",
+                "WorkspaceBuildDeadlineReasonBuild",
+                "WorkspaceBuildDeadlineReasonActivity",
+                "WorkspaceBuildDeadlineReasonUserChanged",
+                "WorkspaceBuildDeadlineReasonAutostopDisabled",
+                "WorkspaceBuildDeadlineReasonTemplateSchedule"
+            ]
+        },
+        "codersdk.WorkspaceBuildDeadlineSource": {
+            "type": "object",
+            "properties": {
+                "agent_id": {
+                    "description": "AgentID is the agent that reported the activity. It is set for app and\nconnection sources.",
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "app_id": {
+                    "description": "AppID is the workspace app. It is only set for app sources with the\nworkspace_app method.",
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "app_name": {
+                    "description": "AppName is the normalized app name, such as \"ssh\". It is only set for\napp sources without a workspace app.",
+                    "type": "string"
+                },
+                "display_name": {
+                    "description": "DisplayName is a human-readable label, such as \"VS Code\". It is not a\nstable identifier.",
+                    "type": "string"
+                },
+                "method": {
+                    "description": "Method is how an app source connects to the workspace. It is only set\nfor app sources.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ConnectionLogMethod"
+                        }
+                    ]
+                },
+                "type": {
+                    "description": "Type is the kind of activity.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.WorkspaceBuildDeadlineSourceType"
+                        }
+                    ]
+                }
+            }
+        },
+        "codersdk.WorkspaceBuildDeadlineSourceType": {
+            "type": "string",
+            "enum": [
+                "app",
+                "connection",
+                "chat_heartbeat",
+                "chat_workspace_upload"
+            ],
+            "x-enum-varnames": [
+                "WorkspaceBuildDeadlineSourceTypeApp",
+                "WorkspaceBuildDeadlineSourceTypeConnection",
+                "WorkspaceBuildDeadlineSourceTypeChatHeartbeat",
+                "WorkspaceBuildDeadlineSourceTypeChatWorkspaceUpload"
+            ]
         },
         "codersdk.WorkspaceBuildDebugEventRequest": {
             "type": "object",

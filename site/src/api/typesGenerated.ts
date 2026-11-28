@@ -13547,6 +13547,93 @@ export interface WorkspaceBuild {
 	readonly matched_provisioners?: MatchedProvisioners;
 	readonly template_version_preset_id: string | null;
 	readonly has_external_agent?: boolean;
+	/**
+	 * DeadlineChange explains the last change to Deadline. Servers that predate
+	 * it omit it.
+	 */
+	readonly deadline_change?: WorkspaceBuildDeadlineChange;
+}
+
+// From codersdk/workspacebuilds.go
+/**
+ * WorkspaceBuildDeadlineChange explains the last change to a build's deadline.
+ */
+export interface WorkspaceBuildDeadlineChange {
+	/**
+	 * Reason is why the deadline last changed. Treat unrecognized values as
+	 * unknown.
+	 */
+	readonly reason: WorkspaceBuildDeadlineReason;
+	/**
+	 * ChangedAt is when the deadline last changed. It is null when the time is
+	 * unknown.
+	 */
+	readonly changed_at: string | null;
+	/**
+	 * ChangedBy is the user who made the change. It is null when no user made
+	 * it or the user is unknown.
+	 */
+	readonly changed_by: MinimalUser | null;
+	/**
+	 * Sources is the activity that last extended the deadline, busiest first.
+	 * It is empty unless Reason is "activity". Ignore unrecognized types.
+	 */
+	readonly sources: readonly WorkspaceBuildDeadlineSource[];
+}
+
+// From codersdk/dbenums_gen.go
+export type WorkspaceBuildDeadlineReason =
+	| "activity"
+	| "autostop_disabled"
+	| "build"
+	| "template_schedule"
+	| "unknown"
+	| "user_changed";
+
+export const WorkspaceBuildDeadlineReasons: WorkspaceBuildDeadlineReason[] = [
+	"activity",
+	"autostop_disabled",
+	"build",
+	"template_schedule",
+	"unknown",
+	"user_changed",
+];
+
+// From codersdk/workspacebuilds.go
+/**
+ * WorkspaceBuildDeadlineSource is one kind of activity that extended a
+ * deadline.
+ */
+export interface WorkspaceBuildDeadlineSource {
+	/**
+	 * Type is the kind of activity.
+	 */
+	readonly type: WorkspaceBuildDeadlineSourceType;
+	/**
+	 * Method is how an app source connects to the workspace. It is only set
+	 * for app sources.
+	 */
+	readonly method?: ConnectionLogMethod;
+	/**
+	 * AppName is the normalized app name, such as "ssh". It is only set for
+	 * app sources without a workspace app.
+	 */
+	readonly app_name?: string;
+	/**
+	 * AppID is the workspace app. It is only set for app sources with the
+	 * workspace_app method.
+	 */
+	readonly app_id?: string;
+	/**
+	 * AgentID is the agent that reported the activity. It is set for app and
+	 * connection sources.
+	 */
+	readonly agent_id?: string;
+	/**
+	 * DisplayName is a human-readable label, such as "VS Code". It is not a
+	 * stable identifier.
+	 */
+	readonly display_name: string;
 }
 
 // From codersdk/workspacebuilds.go

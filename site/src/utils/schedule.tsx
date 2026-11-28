@@ -6,7 +6,12 @@ import relativeTime from "dayjs/plugin/relativeTime";
 import timezone from "dayjs/plugin/timezone";
 import utc from "dayjs/plugin/utc";
 import { Link as RouterLink } from "react-router";
-import type { Template, Workspace } from "#/api/typesGenerated";
+import {
+	type Template,
+	type Workspace,
+	type WorkspaceBuildDeadlineChange,
+	WorkspaceBuildDeadlineSourceTypes,
+} from "#/api/typesGenerated";
 import { HelpPopoverTitle } from "#/components/HelpPopover/HelpPopover";
 import { Link } from "#/components/Link/Link";
 import type { WorkspaceActivityStatus } from "#/modules/workspaces/activity";
@@ -100,6 +105,15 @@ export const autostopDisplay = (
 			dayjs.tz.guess(),
 		);
 		const now = dayjs(workspace.latest_build.deadline);
+		const deadlineChange = workspace.latest_build.deadline_change;
+		const changeExplanation = (deadlineName?: string) => {
+			const changeMessage =
+				deadlineChange &&
+				deadlineChangeMessage(deadlineChange, template, deadlineName);
+			return (
+				changeMessage && <span className="mt-2 block">{changeMessage}</span>
+			);
+		};
 
 		if (activityStatus === "connected") {
 			const hasMaxDeadline = Boolean(workspace.latest_build.max_deadline);
@@ -109,13 +123,17 @@ export const autostopDisplay = (
 					message: "Required to stop soon",
 					tooltip: (
 						<>
-							<HelpPopoverTitle>Upcoming stop required</HelpPopoverTitle>
-							This workspace will be required to stop by{" "}
-							{dayjs(workspace.latest_build.max_deadline).format(
-								"MMMM D [at] h:mm A",
-							)}
-							. You can restart your workspace before then to avoid
-							interruption.
+							<span data-pixel="ignore">
+								<HelpPopoverTitle>Upcoming stop required</HelpPopoverTitle>
+								This workspace will be required to stop by{" "}
+								{dayjs(workspace.latest_build.max_deadline).format(
+									"MMMM D [at] h:mm A",
+								)}
+								. You can restart your workspace before then to avoid
+								interruption.
+							</span>
+							{/* This tooltip is about the required stop, not the deadline. */}
+							{changeExplanation("the autostop deadline")}
 						</>
 					),
 					danger: true,
@@ -149,12 +167,15 @@ export const autostopDisplay = (
 		return {
 			message: `Stop ${deadline.fromNow()}`,
 			tooltip: (
-				<span data-pixel="ignore">
-					{title}
-					This workspace will be stopped on{" "}
-					{deadline.format("MMMM D [at] h:mm A")}
-					{reason}
-				</span>
+				<>
+					<span data-pixel="ignore">
+						{title}
+						This workspace will be stopped on{" "}
+						{deadline.format("MMMM D [at] h:mm A")}
+						{reason}
+					</span>
+					{changeExplanation()}
+				</>
 			),
 			danger: isShutdownSoon(workspace),
 		};
@@ -172,6 +193,62 @@ export const autostopDisplay = (
 	return {
 		message: `Stop ${duration.humanize()} after start`,
 	};
+};
+
+const maxNamedActivitySources = 3;
+
+/**
+ * Explains the last change to a build's deadline, or returns undefined when
+ * there is nothing to report. Unrecognized reasons read as unknown, and
+ * unrecognized source types are skipped, so older clients handle newer servers.
+ * `deadlineName` is how the message refers to the deadline.
+ */
+export const deadlineChangeMessage = (
+	change: WorkspaceBuildDeadlineChange,
+	template: Pick<Template, "name" | "display_name">,
+	deadlineName = "this deadline",
+): string | undefined => {
+	if (!change.changed_at) {
+		return undefined;
+	}
+	const when = dayjs(change.changed_at).fromNow();
+	const actor = change.changed_by?.username ?? "A user";
+	switch (change.reason) {
+		case "build":
+			return change.changed_by
+				? `${change.changed_by.username} started this build ${when}.`
+				: undefined;
+		case "activity": {
+			// Different sources can share a name, such as codium and vscodium.
+			const names = [
+				...new Set(
+					change.sources
+						.filter((source) =>
+							WorkspaceBuildDeadlineSourceTypes.includes(source.type),
+						)
+						.map((source) => source.display_name),
+				),
+			];
+			if (names.length === 0) {
+				return `Activity extended ${deadlineName} ${when}.`;
+			}
+			const listItems = names.slice(0, maxNamedActivitySources);
+			if (names.length > listItems.length) {
+				listItems.push(`${names.length - listItems.length} more`);
+			}
+			return `Activity from ${new Intl.ListFormat("en-US").format(listItems)} extended ${deadlineName} ${when}.`;
+		}
+		case "user_changed":
+			return `${actor} changed ${deadlineName} ${when}.`;
+		case "autostop_disabled":
+			return `${actor} turned off autostop ${when}.`;
+		case "template_schedule": {
+			const by = change.changed_by ? ` by ${change.changed_by.username}` : "";
+			return `A schedule change${by} on the ${template.display_name || template.name} template set ${deadlineName} ${when}.`;
+		}
+		default:
+			return `${deadlineName.charAt(0).toUpperCase()}${deadlineName.slice(1)} last changed ${when}.`;
+	}
 };
 
 const isShutdownSoon = (workspace: Workspace): boolean => {

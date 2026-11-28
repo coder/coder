@@ -19518,6 +19518,26 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     "created_at": "2019-08-24T14:15:22Z",
     "daily_cost": 0,
     "deadline": "2019-08-24T14:15:22Z",
+    "deadline_change": {
+      "changed_at": "2019-08-24T14:15:22Z",
+      "changed_by": {
+        "avatar_url": "http://example.com",
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "name": "string",
+        "username": "string"
+      },
+      "reason": "unknown",
+      "sources": [
+        {
+          "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
+          "app_id": "affd1d10-9538-4fc8-9e0b-4594a28c1335",
+          "app_name": "string",
+          "display_name": "string",
+          "method": "ssh",
+          "type": "app"
+        }
+      ]
+    },
     "has_external_agent": true,
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
@@ -20883,6 +20903,26 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "created_at": "2019-08-24T14:15:22Z",
   "daily_cost": 0,
   "deadline": "2019-08-24T14:15:22Z",
+  "deadline_change": {
+    "changed_at": "2019-08-24T14:15:22Z",
+    "changed_by": {
+      "avatar_url": "http://example.com",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "name": "string",
+      "username": "string"
+    },
+    "reason": "unknown",
+    "sources": [
+      {
+        "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
+        "app_id": "affd1d10-9538-4fc8-9e0b-4594a28c1335",
+        "app_name": "string",
+        "display_name": "string",
+        "method": "ssh",
+        "type": "app"
+      }
+    ]
+  },
   "has_external_agent": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
@@ -21111,32 +21151,119 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name                         | Type                                                              | Required | Restrictions | Description                                                         |
-|------------------------------|-------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------|
-| `build_number`               | integer                                                           | false    |              |                                                                     |
-| `created_at`                 | string                                                            | false    |              |                                                                     |
-| `daily_cost`                 | integer                                                           | false    |              |                                                                     |
-| `deadline`                   | string                                                            | false    |              |                                                                     |
-| `has_external_agent`         | boolean                                                           | false    |              |                                                                     |
-| `id`                         | string                                                            | false    |              |                                                                     |
-| `initiator_id`               | string                                                            | false    |              |                                                                     |
-| `initiator_name`             | string                                                            | false    |              |                                                                     |
-| `job`                        | [codersdk.ProvisionerJob](#codersdkprovisionerjob)                | false    |              |                                                                     |
-| `matched_provisioners`       | [codersdk.MatchedProvisioners](#codersdkmatchedprovisioners)      | false    |              |                                                                     |
-| `max_deadline`               | string                                                            | false    |              |                                                                     |
-| `reason`                     | [codersdk.BuildReason](#codersdkbuildreason)                      | false    |              |                                                                     |
-| `resources`                  | array of [codersdk.WorkspaceResource](#codersdkworkspaceresource) | false    |              |                                                                     |
-| `status`                     | [codersdk.WorkspaceStatus](#codersdkworkspacestatus)              | false    |              |                                                                     |
-| `template_version_id`        | string                                                            | false    |              |                                                                     |
-| `template_version_name`      | string                                                            | false    |              |                                                                     |
-| `template_version_preset_id` | string                                                            | false    |              |                                                                     |
-| `transition`                 | [codersdk.WorkspaceTransition](#codersdkworkspacetransition)      | false    |              |                                                                     |
-| `updated_at`                 | string                                                            | false    |              |                                                                     |
-| `workspace_id`               | string                                                            | false    |              |                                                                     |
-| `workspace_name`             | string                                                            | false    |              |                                                                     |
-| `workspace_owner_avatar_url` | string                                                            | false    |              |                                                                     |
-| `workspace_owner_id`         | string                                                            | false    |              |                                                                     |
-| `workspace_owner_name`       | string                                                            | false    |              | Workspace owner name is the username of the owner of the workspace. |
+| Name                         | Type                                                                           | Required | Restrictions | Description                                                                            |
+|------------------------------|--------------------------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------|
+| `build_number`               | integer                                                                        | false    |              |                                                                                        |
+| `created_at`                 | string                                                                         | false    |              |                                                                                        |
+| `daily_cost`                 | integer                                                                        | false    |              |                                                                                        |
+| `deadline`                   | string                                                                         | false    |              |                                                                                        |
+| `deadline_change`            | [codersdk.WorkspaceBuildDeadlineChange](#codersdkworkspacebuilddeadlinechange) | false    |              | Deadline change explains the last change to Deadline. Servers that predate it omit it. |
+| `has_external_agent`         | boolean                                                                        | false    |              |                                                                                        |
+| `id`                         | string                                                                         | false    |              |                                                                                        |
+| `initiator_id`               | string                                                                         | false    |              |                                                                                        |
+| `initiator_name`             | string                                                                         | false    |              |                                                                                        |
+| `job`                        | [codersdk.ProvisionerJob](#codersdkprovisionerjob)                             | false    |              |                                                                                        |
+| `matched_provisioners`       | [codersdk.MatchedProvisioners](#codersdkmatchedprovisioners)                   | false    |              |                                                                                        |
+| `max_deadline`               | string                                                                         | false    |              |                                                                                        |
+| `reason`                     | [codersdk.BuildReason](#codersdkbuildreason)                                   | false    |              |                                                                                        |
+| `resources`                  | array of [codersdk.WorkspaceResource](#codersdkworkspaceresource)              | false    |              |                                                                                        |
+| `status`                     | [codersdk.WorkspaceStatus](#codersdkworkspacestatus)                           | false    |              |                                                                                        |
+| `template_version_id`        | string                                                                         | false    |              |                                                                                        |
+| `template_version_name`      | string                                                                         | false    |              |                                                                                        |
+| `template_version_preset_id` | string                                                                         | false    |              |                                                                                        |
+| `transition`                 | [codersdk.WorkspaceTransition](#codersdkworkspacetransition)                   | false    |              |                                                                                        |
+| `updated_at`                 | string                                                                         | false    |              |                                                                                        |
+| `workspace_id`               | string                                                                         | false    |              |                                                                                        |
+| `workspace_name`             | string                                                                         | false    |              |                                                                                        |
+| `workspace_owner_avatar_url` | string                                                                         | false    |              |                                                                                        |
+| `workspace_owner_id`         | string                                                                         | false    |              |                                                                                        |
+| `workspace_owner_name`       | string                                                                         | false    |              | Workspace owner name is the username of the owner of the workspace.                    |
+
+## codersdk.WorkspaceBuildDeadlineChange
+
+```json
+{
+  "changed_at": "2019-08-24T14:15:22Z",
+  "changed_by": {
+    "avatar_url": "http://example.com",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "name": "string",
+    "username": "string"
+  },
+  "reason": "unknown",
+  "sources": [
+    {
+      "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
+      "app_id": "affd1d10-9538-4fc8-9e0b-4594a28c1335",
+      "app_name": "string",
+      "display_name": "string",
+      "method": "ssh",
+      "type": "app"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name         | Type                                                                                    | Required | Restrictions | Description                                                                                                                                 |
+|--------------|-----------------------------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------|
+| `changed_at` | string                                                                                  | false    |              | Changed at is when the deadline last changed. It is null when the time is unknown.                                                          |
+| `changed_by` | [codersdk.MinimalUser](#codersdkminimaluser)                                            | false    |              | Changed by is the user who made the change. It is null when no user made it or the user is unknown.                                         |
+| `reason`     | [codersdk.WorkspaceBuildDeadlineReason](#codersdkworkspacebuilddeadlinereason)          | false    |              | Reason is why the deadline last changed. Treat unrecognized values as unknown.                                                              |
+| `sources`    | array of [codersdk.WorkspaceBuildDeadlineSource](#codersdkworkspacebuilddeadlinesource) | false    |              | Sources is the activity that last extended the deadline, busiest first. It is empty unless Reason is "activity". Ignore unrecognized types. |
+
+## codersdk.WorkspaceBuildDeadlineReason
+
+```json
+"unknown"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                                                                 |
+|------------------------------------------------------------------------------------------|
+| `activity`, `autostop_disabled`, `build`, `template_schedule`, `unknown`, `user_changed` |
+
+## codersdk.WorkspaceBuildDeadlineSource
+
+```json
+{
+  "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
+  "app_id": "affd1d10-9538-4fc8-9e0b-4594a28c1335",
+  "app_name": "string",
+  "display_name": "string",
+  "method": "ssh",
+  "type": "app"
+}
+```
+
+### Properties
+
+| Name           | Type                                                                                   | Required | Restrictions | Description                                                                                                 |
+|----------------|----------------------------------------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------|
+| `agent_id`     | string                                                                                 | false    |              | Agent ID is the agent that reported the activity. It is set for app and connection sources.                 |
+| `app_id`       | string                                                                                 | false    |              | App ID is the workspace app. It is only set for app sources with the workspace_app method.                  |
+| `app_name`     | string                                                                                 | false    |              | App name is the normalized app name, such as "ssh". It is only set for app sources without a workspace app. |
+| `display_name` | string                                                                                 | false    |              | Display name is a human-readable label, such as "VS Code". It is not a stable identifier.                   |
+| `method`       | [codersdk.ConnectionLogMethod](#codersdkconnectionlogmethod)                           | false    |              | Method is how an app source connects to the workspace. It is only set for app sources.                      |
+| `type`         | [codersdk.WorkspaceBuildDeadlineSourceType](#codersdkworkspacebuilddeadlinesourcetype) | false    |              | Type is the kind of activity.                                                                               |
+
+## codersdk.WorkspaceBuildDeadlineSourceType
+
+```json
+"app"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                                       |
+|----------------------------------------------------------------|
+| `app`, `chat_heartbeat`, `chat_workspace_upload`, `connection` |
 
 ## codersdk.WorkspaceBuildDebugEventRequest
 
@@ -21814,6 +21941,26 @@ If the schedule is empty, the user will be updated to use the default schedule.|
         "created_at": "2019-08-24T14:15:22Z",
         "daily_cost": 0,
         "deadline": "2019-08-24T14:15:22Z",
+        "deadline_change": {
+          "changed_at": "2019-08-24T14:15:22Z",
+          "changed_by": {
+            "avatar_url": "http://example.com",
+            "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+            "name": "string",
+            "username": "string"
+          },
+          "reason": "unknown",
+          "sources": [
+            {
+              "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
+              "app_id": "affd1d10-9538-4fc8-9e0b-4594a28c1335",
+              "app_name": "string",
+              "display_name": "string",
+              "method": "ssh",
+              "type": "app"
+            }
+          ]
+        },
         "has_external_agent": true,
         "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
         "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",

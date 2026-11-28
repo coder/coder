@@ -172,8 +172,24 @@ export const ConnectedWithMaxDeadlineSoon: Story = {
 				get max_deadline() {
 					return dayjs().add(1, "hour").toISOString();
 				},
+				deadline_change: {
+					reason: "user_changed",
+					get changed_at() {
+						return dayjs().subtract(5, "minute").toISOString();
+					},
+					changed_by: {
+						id: MockUserOwner.id,
+						username: MockUserOwner.username,
+					},
+					sources: [],
+				},
 			},
 		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.hover(canvas.getByTestId("schedule-controls-autostop"));
+		await screen.findByRole("tooltip");
 	},
 };
 
@@ -281,6 +297,33 @@ export const WithFarAwayDeadlineRequiredByTemplate: Story = {
 				),
 			);
 		});
+	},
+};
+
+export const WithDeadlineExtendedByActivity: Story = {
+	args: {
+		workspace: {
+			...MockWorkspace,
+			latest_build: {
+				...MockWorkspace.latest_build,
+				get deadline() {
+					return dayjs().add(55, "minute").toISOString();
+				},
+				deadline_change: {
+					reason: "activity",
+					get changed_at() {
+						return dayjs().subtract(2, "minute").toISOString();
+					},
+					changed_by: null,
+					sources: [{ type: "chat_heartbeat", display_name: "Coder Agents" }],
+				},
+			},
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.hover(canvas.getByTestId("schedule-controls-autostop"));
+		await screen.findByRole("tooltip");
 	},
 };
 
