@@ -5,16 +5,18 @@ import { chatDragAnnouncements } from "./projectDrag";
 type ChatDragAnnouncerProps = {
 	/** The ID that each drag handle's aria-describedby points at. */
 	readonly instructionsId: string;
-	readonly pinCount: number;
+	readonly chatPinCount: number;
+	readonly projectPinCount: number;
 };
 
 /**
- * Tells keyboard users how to drag a chat and announces each drag to screen
- * readers.
+ * Tells keyboard users how to drag a chat or pinned project and announces
+ * each drag to screen readers.
  */
 export const ChatDragAnnouncer: React.FC<ChatDragAnnouncerProps> = ({
 	instructionsId,
-	pinCount,
+	chatPinCount,
+	projectPinCount,
 }) => {
 	const [announcement, setAnnouncement] = useState("");
 	const announce = (text: string | undefined) => {
@@ -32,7 +34,9 @@ export const ChatDragAnnouncer: React.FC<ChatDragAnnouncerProps> = ({
 		},
 		onDragOver: (event) => {
 			if (!dragHasEnded.current) {
-				announce(chatDragAnnouncements.dragover(event, pinCount));
+				announce(
+					chatDragAnnouncements.dragover(event, chatPinCount, projectPinCount),
+				);
 			}
 		},
 		onDragEnd: (event) => {
@@ -43,8 +47,8 @@ export const ChatDragAnnouncer: React.FC<ChatDragAnnouncerProps> = ({
 	return (
 		<>
 			<p id={instructionsId} hidden>
-				To pick up a chat, press Space. Use the arrow keys to move it, Space to
-				drop it, or Escape to cancel.
+				To pick up a chat or project, press Space. Use the arrow keys to move
+				it, Space to drop it, or Escape to cancel.
 			</p>
 			<div role="status" className="sr-only">
 				{announcement}

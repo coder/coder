@@ -17,6 +17,7 @@ import {
 	createChatProject,
 	deleteChatProject,
 	joinChatProjectSummaries,
+	reorderChatProjectPins,
 	setChatProjectRole,
 	unpinChatProject,
 	updateChatProject,
@@ -83,14 +84,109 @@ describe("chat project mutations", () => {
 		expect(isInvalidated(queryClient, nestedKey)).toBe(false);
 	});
 
-	it("refreshes only the summaries after an unpin", async () => {
-		const queryClient = seed();
-		queryClient.setQueryData(chatProjectSummariesKey, []);
-		await settle(unpinChatProject(queryClient));
-		expect(isInvalidated(queryClient, chatProjectSummariesKey)).toBe(true);
-		expect(isInvalidated(queryClient, chatKeys[0])).toBe(false);
-		expect(isInvalidated(queryClient, chatProjectsKey)).toBe(false);
-		expect(isInvalidated(queryClient, chatKeys[1])).toBe(false);
+	it("refreshes only the summaries after a pin change", async () => {
+		for (const factory of [reorderChatProjectPins, unpinChatProject]) {
+			const queryClient = seed();
+			queryClient.setQueryData(chatProjectSummariesKey, []);
+			await settle(factory(queryClient));
+			expect(isInvalidated(queryClient, chatProjectSummariesKey)).toBe(true);
+			expect(isInvalidated(queryClient, chatKeys[0])).toBe(false);
+			expect(isInvalidated(queryClient, chatProjectsKey)).toBe(false);
+			expect(isInvalidated(queryClient, chatKeys[1])).toBe(false);
+		}
+	});
+});
+
+describe("reorderChatProjectPins", () => {
+	const setup = () => {
+		const queryClient = createTestQueryClient();
+		// Keeps the summaries cached without an observer.
+		queryClient.setQueryDefaults(chatProjectSummariesKey, {
+			gcTime: Number.POSITIVE_INFINITY,
+		});
+		queryClient.setQueryData(
+			chatProjectSummariesKey,
+			["launch", "billing", "ops"].map((id, index) => ({
+				...MockChatProjectSummary,
+				project_id: id,
+				pin_order: index + 1,
+			})),
+		);
+		const requests: {
+			projectIds: readonly string[];
+			settle: (error?: unknown) => void;
+		}[] = [];
+		vi.spyOn(API.experimental, "reorderChatProjectPins").mockImplementation(
+			(req) =>
+				new Promise((resolve, reject) => {
+					requests.push({
+						projectIds: req.project_ids,
+						settle: (error) => (error ? reject(error) : resolve()),
+					});
+				}),
+		);
+		onTestFinished(() => {
+			vi.restoreAllMocks();
+		});
+		const reorder = (...projectIds: string[]) =>
+			new MutationObserver(
+				queryClient,
+				reorderChatProjectPins(queryClient),
+			).mutate(projectIds);
+		const pinnedIds = () =>
+			(
+				queryClient.getQueryData<ChatProjectSummary[]>(
+					chatProjectSummariesKey,
+				) ?? []
+			)
+				.toSorted((a, b) => a.pin_order - b.pin_order)
+				.map((s) => s.project_id);
+		return { requests, reorder, pinnedIds };
+	};
+
+	it("shows the new order at once, with unlisted pins last, and restores the old order when the request fails", async () => {
+		const { requests, reorder, pinnedIds } = setup();
+		const reordered = reorder("ops", "launch");
+		await vi.waitFor(() =>
+			expect(pinnedIds()).toEqual(["ops", "launch", "billing"]),
+		);
+
+		await vi.waitFor(() => expect(requests).toHaveLength(1));
+		requests[0].settle(mockApiError({}));
+		await expect(reordered).rejects.toBeDefined();
+		expect(pinnedIds()).toEqual(["launch", "billing", "ops"]);
+	});
+
+	it("sends queued reorders one at a time, in order", async () => {
+		const { requests, reorder } = setup();
+		const first = reorder("ops", "launch", "billing");
+		const second = reorder("billing", "ops", "launch");
+		await vi.waitFor(() => expect(requests).toHaveLength(1));
+		expect(requests[0].projectIds).toEqual(["ops", "launch", "billing"]);
+
+		requests[0].settle();
+		await first;
+		await vi.waitFor(() => expect(requests).toHaveLength(2));
+		expect(requests[1].projectIds).toEqual(["billing", "ops", "launch"]);
+		requests[1].settle();
+		await second;
+	});
+
+	it("keeps a later queued reorder when an earlier one fails", async () => {
+		const { requests, reorder, pinnedIds } = setup();
+		const first = reorder("ops", "launch", "billing");
+		const second = reorder("billing", "ops", "launch");
+		await vi.waitFor(() =>
+			expect(pinnedIds()).toEqual(["billing", "ops", "launch"]),
+		);
+
+		await vi.waitFor(() => expect(requests.length).toBeGreaterThan(0));
+		requests[0].settle(mockApiError({}));
+		await expect(first).rejects.toBeDefined();
+		expect(pinnedIds()).toEqual(["billing", "ops", "launch"]);
+		await vi.waitFor(() => expect(requests).toHaveLength(2));
+		requests[1].settle();
+		await second;
 	});
 });
 
