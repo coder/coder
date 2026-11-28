@@ -15,6 +15,7 @@ import { ConversationItem } from "../ChatElements/Conversation";
 import { Message, MessageContent } from "../ChatElements/Message";
 import { Response } from "../ChatElements/Response";
 import type { SubagentVariant } from "../ChatElements/tools/subagentDescriptor";
+import { useInToolCallSummary } from "../ChatElements/tools/ToolCall";
 import WebSearchSources from "../ChatElements/tools/WebSearchSources";
 import { ImageLightbox } from "../ImageLightbox";
 import { LightboxHost, useLightbox } from "../LightboxHost";
@@ -38,6 +39,7 @@ import {
 	MessageActionBar,
 	UserMessageActions,
 } from "./MessageActions";
+import { type BlockListProps, isSummaryRowBlock } from "./MessageBlocks";
 import {
 	buildDisplayMessages,
 	deriveEvictedFileIds,
@@ -113,6 +115,12 @@ const LifecycleHookNotice: React.FC<{
 	</TimelineNotice>
 );
 
+/**
+ * How many of a block's newest slices its peek renders, so a long block costs
+ * what a short one does.
+ */
+const PEEK_SLICES = 4;
+
 const ChatMessageItem = memo<{
 	organizationId: string;
 	renderKey: string;
@@ -154,6 +162,7 @@ const ChatMessageItem = memo<{
 	prevUserMessageKey?: string;
 	nextUserMessageKey?: string;
 	onJumpToUserMessage?: (messageKey: string) => void;
+	onResponseTextShownChange?: BlockListProps["onResponseTextShownChange"];
 }>(
 	({
 		organizationId,
@@ -185,6 +194,7 @@ const ChatMessageItem = memo<{
 		prevUserMessageKey,
 		nextUserMessageKey,
 		onJumpToUserMessage,
+		onResponseTextShownChange,
 
 		urlTransform,
 		mcpServers,
@@ -193,6 +203,7 @@ const ChatMessageItem = memo<{
 		showDesktopPreviews,
 	}) => {
 		const isUser = message?.role === "user";
+		const inSummary = useInToolCallSummary();
 		const messageId = message?.id;
 
 		const { openLightbox } = useLightbox();
@@ -258,6 +269,11 @@ const ChatMessageItem = memo<{
 				: undefined;
 
 		if (displayState?.shouldHide) {
+			return null;
+		}
+		// A summary slice without a step row would only add a gap. The live
+		// slice that ends the row can still show the Thinking row.
+		if (inSummary && !outputLiveStatus && !blocks.some(isSummaryRowBlock)) {
 			return null;
 		}
 
@@ -342,6 +358,7 @@ const ChatMessageItem = memo<{
 									onTextFileClick={openTextPreview}
 									urlTransform={urlTransform}
 									mcpServers={mcpServers}
+									onResponseTextShownChange={onResponseTextShownChange}
 								/>
 							</MessageContent>
 						</Message>
@@ -372,6 +389,7 @@ const ChatMessageItem = memo<{
 						turnAttachments={sliceTurnAttachments}
 						sources={hideSliceActions ? undefined : turnSources}
 						keepsSpacing={
+							!inSummary &&
 							Boolean(displayState?.needsAssistantBottomSpacer) &&
 							!isLastMessage
 						}
@@ -443,6 +461,14 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		const [keptBlockKeys, setKeptBlockKeys] = useState<ReadonlySet<string>>(
 			new Set(),
 		);
+		// How many response blocks of each live slice show text.
+		const [replyTextCounts, setReplyTextCounts] = useState<
+			ReadonlyMap<string, number>
+		>(new Map());
+		const countReplyText = (key: string, shown: boolean) =>
+			setReplyTextCounts((previous) =>
+				new Map(previous).set(key, (previous.get(key) ?? 0) + (shown ? 1 : -1)),
+			);
 		const keepBlock = (liveKey: string) =>
 			setKeptBlockKeys((previous) =>
 				previous.has(liveKey) ? previous : new Set(previous).add(liveKey),
@@ -611,6 +637,29 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 				? askUserQuestionResponseTextByToolId
 				: undefined;
 
+		// A reply after a live block ends its peek. A live row without text is
+		// a status row, such as a retry, not a reply.
+		const findLastReply = (isLiveReply: (slice: RowSlice) => boolean) =>
+			layout.items.findLastIndex((item) => {
+				if (item.type !== "slice") {
+					return false;
+				}
+				const row = renderRows[item.slice.rowIndex];
+				if (row.type === "live") {
+					return isLiveReply(item.slice);
+				}
+				return !(collapseSteps && isAgentAttachmentOnlyRow(row));
+			});
+		const lastReplyIndex = findLastReply(
+			(slice) =>
+				slice.pieceRange !== undefined ||
+				liveBlocks.some((block) => block.type === "response"),
+		);
+		// A peek that shows stays until the reply's text shows.
+		const lastShownReplyIndex = findLastReply(
+			(slice) => (replyTextCounts.get(slice.key) ?? 0) > 0,
+		);
+
 		const renderSlice = (
 			slice: RowSlice,
 			{ inWorkingBlock }: { inWorkingBlock: boolean },
@@ -639,6 +688,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 						subagentVariants={subagentVariants}
 						urlTransform={urlTransform}
 						mcpServers={mcpServers}
+						onResponseTextShownChange={countReplyText}
 					/>
 				);
 			}
@@ -692,7 +742,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		return (
 			<FileProbeProvider evictedFileIds={evictedFileIds}>
 				<LightboxHost>
-					{layout.items.map((item) => {
+					{layout.items.map((item, itemIndex) => {
 						if (item.type === "block") {
 							const { block } = item;
 							const itemKey = getItemKey(block);
@@ -709,6 +759,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 							const isAfterEditingMessage =
 								firstRow.type === "message" &&
 								afterEditingMessageIds.has(firstRow.entry.message.id);
+							const peek = block.isLive && lastShownReplyIndex < itemIndex;
 
 							const blockAttachments = getBlockTurnAttachments(
 								block,
@@ -736,6 +787,8 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 									<WorkingBlockDisclosure
 										block={block}
 										expanded={expanded}
+										peek={peek}
+										peekCanStart={lastReplyIndex < itemIndex}
 										onExpandedChange={(value) => {
 											keepBlock(block.liveKey);
 											setExpandedBlocks((previous) => {
@@ -747,8 +800,11 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 											});
 										}}
 									>
-										{expanded &&
-											block.slices.map((slice) =>
+										{(expanded || peek) &&
+											(expanded
+												? block.slices
+												: block.slices.slice(-PEEK_SLICES)
+											).map((slice) =>
 												renderSlice(slice, { inWorkingBlock: true }),
 											)}
 									</WorkingBlockDisclosure>

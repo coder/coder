@@ -11,12 +11,15 @@ import {
 } from "../ChatElements/tools/ReadFileTool";
 import type { SubagentVariant } from "../ChatElements/tools/subagentDescriptor";
 import { Tool } from "../ChatElements/tools/Tool";
-import { ToolCall } from "../ChatElements/tools/ToolCall";
+import { ToolCall, useInToolCallSummary } from "../ChatElements/tools/ToolCall";
 import {
 	AttachmentBlock,
 	type PreviewTextAttachment,
 } from "./AttachmentBlocks";
-import { groupSequentialReadFileBlocks } from "./blockUtils";
+import {
+	groupSequentialReadFileBlocks,
+	type TimelineRenderBlock,
+} from "./blockUtils";
 import { ReasoningDisclosure, ResponseBlock } from "./MessageText";
 import type { MergedTool, RenderBlock } from "./types";
 
@@ -50,6 +53,12 @@ const ReadFileTimelineBlock = memo<{
 	);
 });
 
+/** Whether a block renders in one-line summaries: reasoning and tools. */
+export const isSummaryRowBlock = (block: TimelineRenderBlock): boolean =>
+	block.type === "thinking" ||
+	block.type === "tool" ||
+	block.type === "tool-group";
+
 export type BlockListProps = {
 	organizationId: string;
 	blocks: readonly RenderBlock[];
@@ -73,6 +82,8 @@ export type BlockListProps = {
 	askUserQuestionResponseTextByToolId?: ReadonlyMap<string, string>;
 	hasUserResponseAfterAskQuestion: boolean;
 	urlTransform: UrlTransform;
+	/** Passed to response blocks, whose stream key is `keyPrefix`. */
+	onResponseTextShownChange?: (streamKey: string, shown: boolean) => void;
 };
 
 // Shared block renderer for durable messages and the live assistant turn.
@@ -99,6 +110,7 @@ export const BlockList: React.FC<BlockListProps> = ({
 	askUserQuestionResponseTextByToolId,
 	hasUserResponseAfterAskQuestion,
 	urlTransform,
+	onResponseTextShownChange,
 }) => {
 	const prefQuery = useQuery(preferenceSettings());
 	const thinkingDisplayMode: ThinkingDisplayMode =
@@ -110,6 +122,7 @@ export const BlockList: React.FC<BlockListProps> = ({
 
 	const toolByID = new Map(tools.map((tool) => [tool.id, tool]));
 	const displayBlocks = groupSequentialReadFileBlocks(blocks, tools);
+	const inSummary = useInToolCallSummary();
 
 	// Pre-compute which tool IDs have a corresponding block so
 	// we can render "remaining" (block-less) tools afterwards.
@@ -137,6 +150,9 @@ export const BlockList: React.FC<BlockListProps> = ({
 	return (
 		<>
 			{displayBlocks.map((block, index) => {
+				if (inSummary && !isSummaryRowBlock(block)) {
+					return null;
+				}
 				switch (block.type) {
 					case "response":
 						return (
@@ -146,6 +162,7 @@ export const BlockList: React.FC<BlockListProps> = ({
 								isStreaming={isStreaming}
 								streamKey={keyPrefix}
 								urlTransform={urlTransform}
+								onTextShownChange={onResponseTextShownChange}
 							/>
 						);
 					case "thinking":

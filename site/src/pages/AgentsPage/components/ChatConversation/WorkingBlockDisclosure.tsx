@@ -1,8 +1,13 @@
 import { ListTreeIcon } from "lucide-react";
-import { Component } from "react";
+import { Component, useLayoutEffect, useRef, useState } from "react";
 import { useTime } from "#/hooks/useTime";
 import { humanDurationShort } from "#/utils/time";
+import {
+	useMessageScrollerContext,
+	useMessageScrollerUserLayoutIntent,
+} from "#/vendor/message-scroller";
 import { ToolCall } from "../ChatElements/tools/ToolCall";
+import { WorkingBlockPeek } from "./WorkingBlockPeek";
 import type { WorkingBlock } from "./workingBlockGrouping";
 
 /**
@@ -54,15 +59,20 @@ const LiveLabel: React.FC<LiveLabelProps> = ({ block }) => {
 	// Only the live block subscribes to a clock; completed blocks render a
 	// fixed label, so long transcripts never tick.
 	const now = useTime(() => Date.now());
+	// The peek shows only the newest rows, so the label gives the step count.
+	const steps =
+		block.stepCount > 0
+			? ` (${countLabel(block, block.stepCount, "step")})`
+			: "";
 
 	if (block.startedAt === undefined) {
-		return <ToolCall.Label>Working</ToolCall.Label>;
+		return <ToolCall.Label>{`Working${steps}`}</ToolCall.Label>;
 	}
 
 	const elapsed = formatLiveElapsed(now - block.startedAt);
 	return (
 		<ToolCall.Label className="tabular-nums">
-			{`Working for ${atLeast(block)}${elapsed}`}
+			{`Working for ${atLeast(block)}${elapsed}${steps}`}
 		</ToolCall.Label>
 	);
 };
@@ -94,6 +104,11 @@ const getScrollParent = (element: HTMLElement): HTMLElement | null => {
 
 type WorkingBlockContentProps = {
 	memberIds: readonly number[];
+	/**
+	 * In the peek the block's height does not follow its rows, so a prepend
+	 * has no growth to scroll by.
+	 */
+	inPeek?: boolean;
 	children: React.ReactNode;
 };
 
@@ -107,7 +122,10 @@ class WorkingBlockContent extends Component<WorkingBlockContentProps> {
 	private content: HTMLDivElement | null = null;
 
 	getSnapshotBeforeUpdate(previous: WorkingBlockContentProps): number | null {
-		if (!didPrependIntoBlock(previous.memberIds, this.props.memberIds)) {
+		if (
+			this.props.inPeek ||
+			!didPrependIntoBlock(previous.memberIds, this.props.memberIds)
+		) {
 			return null;
 		}
 
@@ -156,8 +174,18 @@ type WorkingBlockDisclosureProps = {
 	block: WorkingBlock;
 	expanded: boolean;
 	onExpandedChange: (expanded: boolean) => void;
+	/** Shows the newest rows of the collapsed block under its summary row. */
+	peek: boolean;
+	/**
+	 * Whether a peek that does not show may start. One that shows stays
+	 * until `peek` turns false.
+	 */
+	peekCanStart: boolean;
 	children: React.ReactNode;
 };
+
+/** A block this young formed in front of the reader, so its peek grows in. */
+const FRESH_BLOCK_MS = 5000;
 
 /**
  * Folds a block's step rows behind a summary row that reads like a tool row.
@@ -166,10 +194,51 @@ export const WorkingBlockDisclosure: React.FC<WorkingBlockDisclosureProps> = ({
 	block,
 	expanded,
 	onExpandedChange,
+	peek,
+	peekCanStart,
 	children,
 }) => {
+	const canShowPeek = peek && !expanded;
+	const [peekShown, setPeekShown] = useState(canShowPeek && peekCanStart);
+	const showPeek = canShowPeek && (peekShown || peekCanStart);
+	if (showPeek !== peekShown) {
+		setPeekShown(showPeek);
+	}
+	// The peek hiding without the block expanding shrinks the timeline. The
+	// scroller's resize observers wait a frame, so the layout effect syncs
+	// before paint. While following the end, handleResize scrolls there.
+	const { handleResize } = useMessageScrollerContext();
+	const peekWasShown = useRef(showPeek);
+	useLayoutEffect(() => {
+		if (peekWasShown.current && !showPeek && !expanded) {
+			handleResize();
+		}
+		peekWasShown.current = showPeek;
+	}, [showPeek, expanded, handleResize]);
+	const [formedFresh] = useState(
+		() =>
+			block.startedAt === undefined ||
+			Date.now() - block.startedAt < FRESH_BLOCK_MS,
+	);
+	// A peek that returns when the reader collapses the block appears at once.
+	const [hasExpanded, setHasExpanded] = useState(expanded);
+	if (expanded && !hasExpanded) {
+		setHasExpanded(true);
+	}
+	const rootRef = useRef<HTMLDivElement>(null);
+	const userLayoutIntent = useMessageScrollerUserLayoutIntent();
+	// The peek unmounts as the block expands, so the root is the toggled
+	// element.
+	const expandFromPeek = () => {
+		if (rootRef.current) {
+			userLayoutIntent(rootRef.current, { revealEnd: true });
+		}
+		onExpandedChange(true);
+	};
+
 	return (
 		<ToolCall.Root
+			ref={rootRef}
 			status={block.isLive ? "running" : "completed"}
 			hasContent
 			expanded={expanded}
@@ -187,6 +256,16 @@ export const WorkingBlockDisclosure: React.FC<WorkingBlockDisclosureProps> = ({
 				)}
 				<ToolCall.Chevron />
 			</ToolCall.HeaderButton>
+			{showPeek && (
+				<WorkingBlockPeek
+					growIn={formedFresh && !hasExpanded}
+					onExpand={expandFromPeek}
+				>
+					<WorkingBlockContent memberIds={block.memberIds} inPeek>
+						{children}
+					</WorkingBlockContent>
+				</WorkingBlockPeek>
+			)}
 			<ToolCall.Content>
 				<WorkingBlockContent memberIds={block.memberIds}>
 					{children}

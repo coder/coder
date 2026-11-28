@@ -1,7 +1,9 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { useState } from "react";
 import { fn, userEvent, within } from "storybook/test";
 import { preferenceSettingsKey } from "#/api/queries/users";
-import type { ChatMessage } from "#/api/typesGenerated";
+import type { ChatMessage, ChatMessagePart } from "#/api/typesGenerated";
+import { Button } from "#/components/Button/Button";
 import { MessageScroller } from "#/vendor/message-scroller";
 import { ConversationTimeline } from "./ConversationTimeline";
 import {
@@ -55,7 +57,7 @@ export default meta;
 type Story = StoryObj<typeof ConversationTimeline>;
 
 const expandBlock =
-	(name: string): Story["play"] =>
+	(name: string | RegExp): Story["play"] =>
 	async ({ canvasElement }) => {
 		await userEvent.click(within(canvasElement).getByRole("button", { name }));
 	};
@@ -75,7 +77,7 @@ export const StreamingFirstStep: Story = {
 			},
 		]),
 	},
-	play: expandBlock("Working for 12s"),
+	play: expandBlock("Working for 12s (1 step)"),
 };
 
 const MockBetweenStepsMessages = MockWorkingMessages.slice(0, 4);
@@ -92,7 +94,7 @@ export const RunningBetweenSteps: Story = {
 		}),
 		liveStatus: { phase: "idle", hasAccumulatedOutput: false },
 	},
-	play: expandBlock("Working for 12s"),
+	play: expandBlock("Working for 12s (2 steps)"),
 };
 
 // The block keeps working while only an attached file follows its last step.
@@ -101,12 +103,11 @@ export const AttachmentFoldsIntoLiveBlock: Story = {
 		parsedMessages: parseMessagesWithMergedTools(MockAttachedFileMessages),
 		liveStatus: buildLiveStatus(),
 	},
-	play: expandBlock("Working for 12s"),
+	play: expandBlock("Working for 12s (1 step)"),
 };
 
 // After a tool result the stream reopens empty before the next call streams.
-// That moment is the same block still working, so nothing appears under its
-// summary.
+// That moment is the same block still working, so no row appears after it.
 export const NextStepStartsInsideBlock: Story = {
 	args: {
 		parsedMessages: parseMessagesWithMergedTools(
@@ -116,7 +117,7 @@ export const NextStepStartsInsideBlock: Story = {
 		streamTools: [],
 		liveStatus: { phase: "starting", hasAccumulatedOutput: false },
 	},
-	play: expandBlock("Working for 12s"),
+	play: expandBlock("Working for 12s (2 steps)"),
 };
 
 export const ReasoningBeforeFirstToolFolds: Story = {
@@ -135,12 +136,22 @@ export const ReasoningBeforeFirstToolFolds: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(
-			canvas.getByRole("button", { name: "Working for 12s" }),
+			canvas.getByRole("button", { name: /^Working for 12s/ }),
 		);
 
 		// The reasoning text streams in through the smoothing buffer.
 		await canvas.findByText(/planning the inspection/i);
 	},
+};
+
+const MockSummaryReasoning: ChatMessagePart = {
+	type: "reasoning",
+	text: "Summarizing the inspection",
+	created_at: workingFixtureTime(13),
+};
+const MockAnswerText: ChatMessagePart = {
+	type: "text",
+	text: "The workspace looks healthy.",
 };
 
 // Once the final step starts its answer, its reasoning stays in the live
@@ -150,16 +161,9 @@ export const AnswerStreamsAfterBlock: Story = {
 		parsedMessages: parseMessagesWithMergedTools(
 			MockWorkingMessages.slice(0, 5),
 		),
-		...buildStreamRenderState([
-			{
-				type: "reasoning",
-				text: "Summarizing the inspection",
-				created_at: workingFixtureTime(13),
-			},
-			{ type: "text", text: "The workspace looks healthy." },
-		]),
+		...buildStreamRenderState([MockSummaryReasoning, MockAnswerText]),
 	},
-	play: expandBlock("Working for 12s"),
+	play: expandBlock(/^Working for 12s/),
 };
 
 // Text before a web search renders above the live block.
@@ -192,7 +196,7 @@ export const SearchAnswerStreamsAfterBlock: Story = {
 			{ type: "text", text: " is v2.30." },
 		]),
 	},
-	play: expandBlock("Working for 12s"),
+	play: expandBlock("Working for 12s (1 step)"),
 };
 
 export const TextBetweenStepsOpensNextBlock: Story = {
@@ -208,7 +212,7 @@ export const TextBetweenStepsOpensNextBlock: Story = {
 			...(MockWorkingMessages[3].content ?? []),
 		]),
 	},
-	play: expandBlock("Working for 8s"),
+	play: expandBlock("Working for 8s (1 step)"),
 };
 
 export const RequiresActionCompletesBlock: Story = {
@@ -265,5 +269,100 @@ export const PromptlessLiveBlock: Story = {
 		),
 		liveStatus: { phase: "idle", hasAccumulatedOutput: false },
 	},
-	play: expandBlock("Working for at least 12s"),
+	play: expandBlock("Working for at least 12s (2 steps or more)"),
+};
+
+export const PeekShowsFirstStep: Story = {
+	args: StreamingFirstStep.args,
+};
+
+export const PeekShowsNewestSteps: Story = {
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(
+			MockWorkingMessages.slice(0, 5),
+		),
+		...buildStreamRenderState([
+			{
+				type: "tool-call",
+				tool_call_id: "third",
+				tool_name: "execute",
+				args: { command: "echo third" },
+				created_at: workingFixtureTime(14),
+			},
+		]),
+	},
+};
+
+export const PeekShowsThinking: Story = {
+	args: NextStepStartsInsideBlock.args,
+};
+
+const MockRewrittenSecondStepMessage: ChatMessage = {
+	...MockWorkingMessages[3],
+	content: MockWorkingMessages[3].content?.map((part) => ({
+		...part,
+		hook_rewritten: true,
+	})),
+};
+
+// A step a hook rewrote marks its one-line row instead of showing a badge.
+export const PeekMarksRewrittenStep: Story = {
+	args: {
+		...PeekShowsNewestSteps.args,
+		parsedMessages: parseMessagesWithMergedTools([
+			...MockWorkingMessages.slice(0, 3),
+			MockRewrittenSecondStepMessage,
+			MockWorkingMessages[4],
+		]),
+	},
+};
+
+// A reply already in the timeline keeps a peek from starting.
+export const AnswerKeepsPeekFromStarting: Story = {
+	args: AnswerStreamsAfterBlock.args,
+};
+
+export const TextAnswerKeepsPeekFromStarting: Story = {
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(
+			MockWorkingMessages.slice(0, 5),
+		),
+		...buildStreamRenderState([MockAnswerText]),
+	},
+};
+
+// The reply starts while the peek shows, and its text replaces the peek.
+export const ReplyTextEndsShownPeek: Story = {
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(
+			MockWorkingMessages.slice(0, 5),
+		),
+	},
+	render: function Render(args) {
+		const [replied, setReplied] = useState(false);
+		return (
+			<>
+				<ConversationTimeline
+					{...args}
+					{...buildStreamRenderState(
+						replied
+							? [MockSummaryReasoning, MockAnswerText]
+							: [MockSummaryReasoning],
+					)}
+				/>
+				<Button
+					className="fixed top-2 right-2 z-20"
+					onClick={() => setReplied(true)}
+					disabled={replied}
+				>
+					Stream the reply
+				</Button>
+			</>
+		);
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", { name: "Stream the reply" }),
+		);
+	},
 };

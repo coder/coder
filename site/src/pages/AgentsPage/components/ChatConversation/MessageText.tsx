@@ -1,8 +1,8 @@
 import { cn } from "cn";
-import { memo, useLayoutEffect, useRef, useState } from "react";
+import { memo, useEffectEvent, useLayoutEffect, useRef, useState } from "react";
 import type { UrlTransform } from "streamdown";
 import type { ThinkingDisplayMode } from "#/api/typesGenerated";
-import { Response } from "../ChatElements/Response";
+import { Response, showsResponseText } from "../ChatElements/Response";
 import { ToolCall } from "../ChatElements/tools/ToolCall";
 import { useSmoothStreamingText } from "./SmoothText";
 import { getThinkingDisclosureDisplay } from "./thinkingTitle";
@@ -131,15 +131,48 @@ export const ResponseBlock = memo<{
 	isStreaming: boolean;
 	streamKey: string;
 	urlTransform?: UrlTransform;
-}>(({ text, isStreaming, streamKey, urlTransform }) => {
+	/**
+	 * Called with the stream key when the block starts and stops showing text.
+	 * Smoothing delays streamed text, and Markdown syntax alone renders none.
+	 */
+	onTextShownChange?: (streamKey: string, shown: boolean) => void;
+}>(({ text, isStreaming, streamKey, urlTransform, onTextShownChange }) => {
 	const { visibleText } = useSmoothStreamingText({
 		fullText: text,
 		isStreaming,
 		bypassSmoothing: !isStreaming,
 		streamKey,
 	});
+	const reportTextShown = useEffectEvent((shown: boolean) =>
+		onTextShownChange?.(streamKey, shown),
+	);
+	const responseRef = useRef<HTMLDivElement>(null);
+	const reportedShown = useRef(false);
+	useLayoutEffect(() => {
+		const response = responseRef.current;
+		const shown = Boolean(
+			onTextShownChange && response && showsResponseText(response),
+		);
+		if (shown !== reportedShown.current) {
+			reportedShown.current = shown;
+			reportTextShown(shown);
+		}
+	});
+	useLayoutEffect(
+		() => () => {
+			if (reportedShown.current) {
+				reportedShown.current = false;
+				reportTextShown(false);
+			}
+		},
+		[],
+	);
 	return (
-		<Response streaming={isStreaming} urlTransform={urlTransform}>
+		<Response
+			ref={responseRef}
+			streaming={isStreaming}
+			urlTransform={urlTransform}
+		>
 			{isStreaming ? visibleText : text}
 		</Response>
 	);
