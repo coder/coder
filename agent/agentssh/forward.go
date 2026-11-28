@@ -125,6 +125,23 @@ func (h *forwardedUnixHandler) HandleSSHRequest(ctx ssh.Context, _ *ssh.Server, 
 		}
 		log.Debug(ctx, "SSH unix forward listening on socket")
 
+		socketFi, err := os.Lstat(addr)
+		if err != nil {
+			log.Warn(ctx, "stat local Unix socket for SSH unix forward request", slog.Error(err))
+			_ = ln.Close()
+			return false, nil
+		}
+
+		if ul, ok := ln.(*net.UnixListener); ok {
+			ul.SetUnlinkOnClose(false)
+		}
+
+		ln = &unixForwardListener{
+			Listener: ln,
+			path:     addr,
+			fi:       socketFi,
+		}
+
 		// The listener needs to successfully start before it can be added to
 		// the map, so we don't have to worry about checking for an existing
 		// listener.
@@ -255,4 +272,31 @@ func unlink(path string) error {
 			return err
 		}
 	}
+}
+
+// unixForwardListener wraps a net.Listener for a Unix domain socket to control
+// unlinking on close. Go's *net.UnixListener defaults to unlinking the socket path
+// unconditionally on Close(). If a newer session connects and overrides the socket
+// path, closing the older session would destroy the socket file currently owned
+// and actively listened to by the newer session.
+// unixForwardListener only unlinks the socket file if the file on disk is still
+// the exact file created by this listener.
+type unixForwardListener struct {
+	net.Listener
+	closeOnce sync.Once
+	path      string
+	fi        os.FileInfo
+}
+
+func (l *unixForwardListener) Close() error {
+	var closeErr error
+	l.closeOnce.Do(func() {
+		closeErr = l.Listener.Close()
+		if l.fi != nil {
+			if fi, err := os.Lstat(l.path); err == nil && os.SameFile(l.fi, fi) {
+				_ = unlink(l.path)
+			}
+		}
+	})
+	return closeErr
 }
