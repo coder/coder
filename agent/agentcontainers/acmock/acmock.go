@@ -198,6 +198,25 @@ func (mr *MockDevcontainerCLIMockRecorder) ReadConfig(ctx, workspaceFolder, conf
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadConfig", reflect.TypeOf((*MockDevcontainerCLI)(nil).ReadConfig), varargs...)
 }
 
+// RunUserCommands mocks base method.
+func (m *MockDevcontainerCLI) RunUserCommands(ctx context.Context, workspaceFolder, configPath string, opts ...agentcontainers.DevcontainerCLIRunUserCommandsOptions) error {
+	m.ctrl.T.Helper()
+	varargs := []any{ctx, workspaceFolder, configPath}
+	for _, a := range opts {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "RunUserCommands", varargs...)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// RunUserCommands indicates an expected call of RunUserCommands.
+func (mr *MockDevcontainerCLIMockRecorder) RunUserCommands(ctx, workspaceFolder, configPath any, opts ...any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]any{ctx, workspaceFolder, configPath}, opts...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RunUserCommands", reflect.TypeOf((*MockDevcontainerCLI)(nil).RunUserCommands), varargs...)
+}
+
 // Up mocks base method.
 func (m *MockDevcontainerCLI) Up(ctx context.Context, workspaceFolder, configPath string, opts ...agentcontainers.DevcontainerCLIUpOptions) (string, error) {
 	m.ctrl.T.Helper()

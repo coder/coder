@@ -118,8 +118,30 @@ type fakeDevcontainerCLI struct {
 	readConfig     agentcontainers.DevcontainerConfig
 	readConfigErr  error
 	readConfigErrC chan func(envs []string) error
+	// If set, send to return err, close to return runUserCommandsErr.
+	runUserCommandsErrC chan func() error
+	runUserCommandsErr  error
+	// If set, receives the context error when RunUserCommands is canceled.
+	runUserCommandsCanceledC chan error
 
 	configMap map[string]agentcontainers.DevcontainerConfig // By config path
+}
+
+func (f *fakeDevcontainerCLI) RunUserCommands(ctx context.Context, _, _ string, _ ...agentcontainers.DevcontainerCLIRunUserCommandsOptions) error {
+	if f.runUserCommandsErrC != nil {
+		select {
+		case <-ctx.Done():
+			if f.runUserCommandsCanceledC != nil {
+				f.runUserCommandsCanceledC <- ctx.Err()
+			}
+			return ctx.Err()
+		case fn, ok := <-f.runUserCommandsErrC:
+			if ok {
+				return fn()
+			}
+		}
+	}
+	return f.runUserCommandsErr
 }
 
 func (f *fakeDevcontainerCLI) Up(ctx context.Context, workspaceFolder, configPath string, _ ...agentcontainers.DevcontainerCLIUpOptions) (string, error) {
@@ -3330,6 +3352,138 @@ func TestAPI(t *testing.T) {
 			// Then: We expect that the error will be gone
 			require.Len(t, response.Devcontainers, 1)
 			require.Equal(t, "", response.Devcontainers[0].Error)
+		})
+	})
+
+	// Lifecycle commands after waitFor run in the background, so the
+	// devcontainer is usable before they finish.
+	t.Run("LifecycleCommandsAfterWaitFor", func(t *testing.T) {
+		t.Parallel()
+
+		if runtime.GOOS == "windows" {
+			t.Skip("Dev Container tests are not supported on Windows")
+		}
+
+		getDevcontainer := func(ctx context.Context, t *testing.T, r http.Handler) codersdk.WorkspaceAgentDevcontainer {
+			t.Helper()
+			req := httptest.NewRequest(http.MethodGet, "/", nil).WithContext(ctx)
+			rec := httptest.NewRecorder()
+			r.ServeHTTP(rec, req)
+			require.Equal(t, http.StatusOK, rec.Code)
+			var response codersdk.WorkspaceAgentListContainersResponse
+			require.NoError(t, json.NewDecoder(rec.Body).Decode(&response))
+			require.Len(t, response.Devcontainers, 1)
+			return response.Devcontainers[0]
+		}
+
+		setup := func(t *testing.T) (context.Context, *agentcontainers.API, *fakeDevcontainerCLI, http.Handler, codersdk.WorkspaceAgentDevcontainer) {
+			t.Helper()
+
+			var (
+				ctx    = testutil.Context(t, testutil.WaitMedium)
+				logger = slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+				mClock = quartz.NewMock(t)
+
+				testContainer = codersdk.WorkspaceAgentContainer{
+					ID:           "test-container-id",
+					FriendlyName: "test-container",
+					Image:        "test-image",
+					Running:      true,
+					CreatedAt:    time.Now(),
+					Labels: map[string]string{
+						agentcontainers.DevcontainerLocalFolderLabel: "/workspaces/project",
+						agentcontainers.DevcontainerConfigFileLabel:  "/workspaces/project/.devcontainer/devcontainer.json",
+					},
+				}
+				fCCLI = &fakeContainerCLI{
+					containers: codersdk.WorkspaceAgentListContainersResponse{
+						Containers: []codersdk.WorkspaceAgentContainer{testContainer},
+					},
+					arch: "amd64",
+				}
+				fDCCLI = &fakeDevcontainerCLI{
+					upID:                     testContainer.ID,
+					runUserCommandsErrC:      make(chan func() error),
+					runUserCommandsCanceledC: make(chan error, 1),
+				}
+				fSAC = &fakeSubAgentClient{
+					logger: logger.Named("fakeSubAgentClient"),
+				}
+
+				testDevcontainer = codersdk.WorkspaceAgentDevcontainer{
+					ID:              uuid.New(),
+					Name:            "test-devcontainer",
+					WorkspaceFolder: "/workspaces/project",
+					ConfigPath:      "/workspaces/project/.devcontainer/devcontainer.json",
+					Status:          codersdk.WorkspaceAgentDevcontainerStatusStopped,
+				}
+			)
+
+			mClock.Set(time.Now()).MustWait(ctx)
+			tickerTrap := mClock.Trap().TickerFunc("updaterLoop")
+
+			api := agentcontainers.NewAPI(logger,
+				agentcontainers.WithClock(mClock),
+				agentcontainers.WithContainerCLI(fCCLI),
+				agentcontainers.WithDevcontainerCLI(fDCCLI),
+				agentcontainers.WithDevcontainers(
+					[]codersdk.WorkspaceAgentDevcontainer{testDevcontainer},
+					[]codersdk.WorkspaceAgentScript{{ID: testDevcontainer.ID, LogSourceID: uuid.New()}},
+				),
+				agentcontainers.WithSubAgentClient(fSAC),
+				agentcontainers.WithSubAgentURL("test-subagent-url"),
+				agentcontainers.WithWatcher(watcher.NewNoop()),
+			)
+			api.Start()
+			t.Cleanup(func() { _ = api.Close() })
+
+			tickerTrap.MustWait(ctx).MustRelease(ctx)
+			tickerTrap.Close()
+
+			r := chi.NewRouter()
+			r.Mount("/", api.Routes())
+
+			return ctx, api, fDCCLI, r, testDevcontainer
+		}
+
+		t.Run("FailureReported", func(t *testing.T) {
+			t.Parallel()
+
+			ctx, api, fDCCLI, r, dc := setup(t)
+
+			// RunUserCommands blocks until we send to the channel, so
+			// CreateDevcontainer must not wait for it.
+			err := api.CreateDevcontainer(dc.WorkspaceFolder, dc.ConfigPath)
+			require.NoError(t, err)
+
+			got := getDevcontainer(ctx, t, r)
+			assert.Equal(t, codersdk.WorkspaceAgentDevcontainerStatusRunning, got.Status)
+			assert.Empty(t, got.Error)
+
+			testutil.RequireSend(ctx, t, fDCCLI.runUserCommandsErrC, func() error {
+				return xerrors.New("postCreateCommand failed")
+			})
+			require.Eventually(t, func() bool {
+				return getDevcontainer(ctx, t, r).Error == "postCreateCommand failed"
+			}, testutil.WaitShort, testutil.IntervalFast)
+			assert.Equal(t, codersdk.WorkspaceAgentDevcontainerStatusRunning, getDevcontainer(ctx, t, r).Status)
+		})
+
+		t.Run("DeleteCancels", func(t *testing.T) {
+			t.Parallel()
+
+			ctx, api, fDCCLI, r, dc := setup(t)
+
+			err := api.CreateDevcontainer(dc.WorkspaceFolder, dc.ConfigPath)
+			require.NoError(t, err)
+
+			req := httptest.NewRequest(http.MethodDelete, "/devcontainers/"+dc.ID.String(), nil).WithContext(ctx)
+			rec := httptest.NewRecorder()
+			r.ServeHTTP(rec, req)
+			require.Equal(t, http.StatusNoContent, rec.Code)
+
+			canceledErr := testutil.RequireReceive(ctx, t, fDCCLI.runUserCommandsCanceledC)
+			require.ErrorIs(t, canceledErr, context.Canceled)
 		})
 	})
 

@@ -2021,6 +2021,7 @@ func TestWorkspaceAgentRecreateDevcontainer(t *testing.T) {
 
 							return "someid", nil
 						}).Times(1)
+					mDCCLI.EXPECT().RunUserCommands(gomock.Any(), workspaceFolder, configFile, gomock.Any()).Return(nil).AnyTimes()
 				}
 
 				devcontainerAPIOptions := []agentcontainers.Option{

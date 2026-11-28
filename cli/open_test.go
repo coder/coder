@@ -356,6 +356,10 @@ func (*fakeDevcontainerCLI) Up(ctx context.Context, workspaceFolder, configFile 
 	return "", nil
 }
 
+func (*fakeDevcontainerCLI) RunUserCommands(context.Context, string, string, ...agentcontainers.DevcontainerCLIRunUserCommandsOptions) error {
+	return nil
+}
+
 func TestOpenVSCodeDevContainer(t *testing.T) {
 	t.Skip("flaky until CORE-717: the agent netstack drops a SYN that reuses a source port it holds in TIME_WAIT")
 	t.Parallel()
