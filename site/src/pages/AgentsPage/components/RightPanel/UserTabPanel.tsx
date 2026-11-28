@@ -71,6 +71,7 @@ export const UserTabPanel: React.FC<UserTabPanelProps> = ({
 
 			return (
 				<PortPreviewPanel
+					chatId={chatId}
 					workspace={workspace}
 					agent={agent}
 					host={wildcardHostname}

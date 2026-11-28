@@ -373,6 +373,9 @@ const AgentEmbedPage = lazy(
 const DesktopPopoutPage = lazy(
 	() => import("./pages/AgentsPage/DesktopPopoutPage/DesktopPopoutPage"),
 );
+const RightPanelTabPopoutPage = lazy(
+	() => import("./pages/AgentsPage/RightPanelTabPopoutPage"),
+);
 const AgentCreatePage = lazy(
 	() => import("./pages/AgentsPage/AgentCreatePage/AgentCreatePage"),
 );
@@ -950,6 +953,18 @@ export const router = createBrowserRouter(
 							}
 						>
 							<DesktopPopoutPage />
+						</Suspense>
+					}
+				/>
+				<Route
+					path="/agents/:agentId/tabs/:tabId"
+					element={
+						<Suspense
+							fallback={
+								<div className="flex h-screen w-screen items-center justify-center" />
+							}
+						>
+							<RightPanelTabPopoutPage />
 						</Suspense>
 					}
 				/>

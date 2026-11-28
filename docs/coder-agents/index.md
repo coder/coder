@@ -141,6 +141,11 @@ Users can edit a queued message before it is delivered.
 While a message under **After turn** is being edited, it and the messages behind it wait.
 While a message under **Next step** is being edited, every held message waits.
 
+### Port previews
+
+A workspace app shown in an agent-chat port preview cannot navigate the top-level Coder page.
+In the default chat interface, select the external-link icon in the port preview header to open the app's port URL in a new browser tab.
+
 ### File attachments
 
 Users can attach files to chat messages by pasting from the clipboard, dragging files into the input area, or using the attachment button.
