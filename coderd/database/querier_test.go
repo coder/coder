@@ -10587,6 +10587,40 @@ func TestUserSecretsSoftDeleteTrigger(t *testing.T) {
 	require.Contains(t, err.Error(), "Cannot create user_secret for deleted user")
 }
 
+// Soft-deleting a user removes their chat automations, which would otherwise
+// keep running as them, and refuses new ones.
+func TestChatAutomationsSoftDeleteTrigger(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitMedium)
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	deleted := dbgen.User(t, db, database.User{})
+	kept := dbgen.User(t, db, database.User{})
+	deletedAutomation := dbgen.ChatAutomation(t, db, database.ChatAutomation{OrganizationID: org.ID, OwnerID: deleted.ID})
+	keptAutomation := dbgen.ChatAutomation(t, db, database.ChatAutomation{OrganizationID: org.ID, OwnerID: kept.ID})
+
+	require.NoError(t, db.UpdateUserDeletedByID(ctx, deleted.ID))
+
+	_, err := db.GetChatAutomationByID(ctx, deletedAutomation.ID)
+	require.ErrorIs(t, err, sql.ErrNoRows)
+	_, err = db.GetChatAutomationByID(ctx, keptAutomation.ID)
+	require.NoError(t, err)
+
+	_, err = db.InsertChatAutomation(ctx, database.InsertChatAutomationParams{
+		OrganizationID:   org.ID,
+		OwnerID:          deleted.ID,
+		Name:             "after-delete",
+		Kind:             database.ChatAutomationKindSchedule,
+		Prompt:           "Do the task.",
+		TargetMode:       database.ChatAutomationTargetModeExistingChat,
+		ScheduleCron:     sql.NullString{String: "0 9 * * *", Valid: true},
+		ScheduleTimeZone: sql.NullString{String: "UTC", Valid: true},
+	})
+	require.True(t, database.IsCheckViolation(err, database.CheckConstraint("chat_automation_owner_deleted")), "got %v", err)
+}
+
 // TestOrgMembersSoftDeleteTrigger verifies that a user's organization
 // memberships (and transitively their group memberships) are deleted
 // when the user is soft-deleted.
