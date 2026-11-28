@@ -14,6 +14,10 @@
 #   2. When the PR merges (or if already merged), the workflow detects the
 #      target release/* branches and opens one cherry-pick PR per branch.
 #
+# Dependabot PRs that fix a Dependabot alert are labeled automatically when
+# they merge (.github/scripts/dependabot-alert-match.sh), which then starts the
+# backport.
+#
 # The created backport PRs follow existing repo conventions:
 #   - Branch:  backport/<pr>-to-<version>
 #   - Title:   <original PR title> (#<pr>)
@@ -41,12 +45,23 @@ jobs:
     name: Detect target branches
     permissions:
       contents: read
+      id-token: write # Cloud KMS signs the backporter App's JWT
+    # A merged PR is backported when it has the backport label. A merged
+    # Dependabot PR is also checked against Dependabot alerts and labeled when
+    # it fixed one. Adding the label with the App token starts a new run of
+    # this workflow, which does the backport.
     if: >
-      github.event.pull_request.merged == true &&
-      contains(github.event.pull_request.labels.*.name, 'backport')
+      github.event.pull_request.merged == true && (
+        contains(github.event.pull_request.labels.*.name, 'backport') ||
+        (
+          github.event.pull_request.user.login == 'dependabot[bot]' &&
+          github.event.pull_request.user.id == 49699333
+        )
+      )
     runs-on: ubuntu-latest
+    environment: main
     outputs:
-      branches: ${{ steps.find.outputs.branches }}
+      branches: ${{ steps.find.outputs.branches || '[]' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -54,8 +69,45 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      # GITHUB_TOKEN can't read Dependabot alerts, and a label added with it
+      # doesn't start the backport run. This only runs for Dependabot PRs that
+      # aren't labeled yet. The App's key is a non-exportable Cloud KMS key;
+      # only this workflow, in this environment, may sign with it.
+      - name: Generate alert App token
+        id: alert-token
+        if: ${{ !contains(github.event.pull_request.labels.*.name, 'backport') }}
+        uses: coder/github-app-token-action@00eaec58ee1bfea9c8b48655b7ab7470b07739e5 # main 2026-11-17
+        with:
+          client-id: ${{ secrets.BACKPORT_APP_ID }}
+          kms-key: ${{ secrets.BACKPORT_APP_KMS_KEY }}
+          workload-identity-provider: ${{ secrets.APP_KEYS_WORKLOAD_ID_PROVIDER }}
+          owner: coder
+          repositories: coder
+          permissions: |
+            pull_requests: write
+            issues: write
+            vulnerability_alerts: read
+
+      - name: Label Dependabot security updates for backport
+        if: ${{ !contains(github.event.pull_request.labels.*.name, 'backport') }}
+        env:
+          GH_TOKEN: ${{ steps.alert-token.outputs.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+
+          # The script comes from the checked-out base branch, never from the PR.
+          bash .github/scripts/dependabot-alert-match.sh | tee /tmp/match.out
+          if grep -q '^matched=true' /tmp/match.out; then
+            echo "Adding backport label to Dependabot security update PR #${PR_NUMBER}"
+            gh api -X POST "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/labels" -f 'labels[]=backport'
+          else
+            echo "PR #${PR_NUMBER} fixes no Dependabot alert; not backporting."
+          fi
+
       - name: Find target release branches
         id: find
+        if: ${{ contains(github.event.pull_request.labels.*.name, 'backport') }}
         env:
           ESR_VERSIONS_FILE: scripts/release_channels/esr_versions.txt
         run: |
