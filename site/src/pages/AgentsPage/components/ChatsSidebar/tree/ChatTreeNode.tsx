@@ -9,6 +9,7 @@ import { useEffect, useState } from "react";
 import { useIsMutating, useMutation, useQueryClient } from "react-query";
 import { NavLink, useLocation } from "react-router";
 import { getErrorMessage } from "#/api/errors";
+import { chatProjectSummariesKey } from "#/api/queries/chatProjects";
 import {
 	archiveChat,
 	chatArchiveMutationKey,
@@ -167,10 +168,14 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 		},
 	});
 	const readStateMutationKey = chatReadStateMutationKey(chat.id);
+	// The project's unread count changes with the chat's read state.
+	const invalidateProjectSummaries = () =>
+		queryClient.invalidateQueries({ queryKey: chatProjectSummariesKey });
 	const markReadOptions = markChatRead(queryClient);
 	const markReadMutation = useMutation({
 		...markReadOptions,
 		mutationKey: readStateMutationKey,
+		onSuccess: invalidateProjectSummaries,
 		onError: (error, chatId, context) => {
 			markReadOptions.onError(error, chatId, context);
 			toast.error(getErrorMessage(error, "Failed to mark agent as read."));
@@ -180,6 +185,7 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 	const markUnreadMutation = useMutation({
 		...markUnreadOptions,
 		mutationKey: readStateMutationKey,
+		onSuccess: invalidateProjectSummaries,
 		onError: (error, chatId, context) => {
 			markUnreadOptions.onError(error, chatId, context);
 			toast.error(getErrorMessage(error, "Failed to mark agent as unread."));

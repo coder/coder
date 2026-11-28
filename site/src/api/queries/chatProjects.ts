@@ -11,13 +11,16 @@ export const chatProjectsKey = ["chat-projects"] as const;
 
 /**
  * Lists chat projects the current user owns or that are shared with them,
- * across all organizations.
+ * across all organizations. Summaries name their projects by ID and refetch
+ * on focus, so the list does too: a project created or shared since the
+ * list loaded would otherwise have a summary without a project.
  * @public
  */
 export const chatProjects = () =>
 	queryOptions({
 		queryKey: chatProjectsKey,
 		queryFn: () => API.experimental.getChatProjects(),
+		refetchOnWindowFocus: true,
 	});
 
 /**
@@ -30,6 +33,91 @@ export const chatProject = (projectId: string | undefined) =>
 		...chatProjects(),
 		select: (projects) =>
 			projects.find((project) => project.id === projectId) ?? null,
+	});
+
+/** Nested under chatProjectsKey, so project list invalidations reach it. */
+export const chatProjectSummariesKey = [
+	...chatProjectsKey,
+	"summaries",
+] as const;
+
+/**
+ * The user's pin and counts over the user's own chats for each project in
+ * chatProjects(), by project ID. Pins send no watch events, so other tabs
+ * catch up on focus.
+ */
+export const chatProjectSummaries = () =>
+	queryOptions({
+		queryKey: chatProjectSummariesKey,
+		queryFn: () => API.experimental.getChatProjectSummaries(),
+		refetchOnWindowFocus: true,
+	});
+
+/** A summary with its project from chatProjects(). */
+export type ChatProjectWithSummary = TypesGen.ChatProjectSummary & {
+	readonly project: TypesGen.ChatProject;
+};
+
+/**
+ * Pairs each summary with its project, in the summaries' order. A summary
+ * whose project the list lacks is left out until the list refetches.
+ */
+export const joinChatProjectSummaries = (
+	projects: readonly TypesGen.ChatProject[],
+	summaries: readonly TypesGen.ChatProjectSummary[],
+): ChatProjectWithSummary[] => {
+	const projectsById = new Map(
+		projects.map((project) => [project.id, project]),
+	);
+	return summaries.flatMap((summary) => {
+		const project = projectsById.get(summary.project_id);
+		return project ? [{ ...summary, project }] : [];
+	});
+};
+
+/** The pinned summaries, in pin order. */
+export const getPinnedProjectSummaries = <
+	T extends TypesGen.ChatProjectSummary,
+>(
+	summaries: readonly T[],
+): T[] =>
+	summaries
+		.filter((summary) => summary.pinned)
+		.sort((a, b) => a.pin_order - b.pin_order);
+
+/** Unpins a project, which also takes its chats out of the sidebar. */
+export const unpinChatProject = (queryClient: QueryClient) =>
+	mutationOptions({
+		mutationFn: (project: TypesGen.ChatProject) =>
+			API.experimental.unpinChatProject(project.organization_id, project.id),
+		// The folder and its chats leave the sidebar at once, and a summaries
+		// fetch already in flight cannot bring them back.
+		onMutate: async (project: TypesGen.ChatProject) => {
+			await queryClient.cancelQueries({ queryKey: chatProjectSummariesKey });
+			const previousSummaries = queryClient.getQueryData<
+				TypesGen.ChatProjectSummary[]
+			>(chatProjectSummariesKey);
+			queryClient.setQueryData<TypesGen.ChatProjectSummary[]>(
+				chatProjectSummariesKey,
+				(summaries) =>
+					summaries?.map((s) =>
+						s.project_id === project.id
+							? { ...s, pinned: false, pin_order: 0 }
+							: s,
+					),
+			);
+			return { previousSummaries };
+		},
+		onError: (_error, _project, context) => {
+			if (context?.previousSummaries) {
+				queryClient.setQueryData(
+					chatProjectSummariesKey,
+					context.previousSummaries,
+				);
+			}
+		},
+		onSettled: () =>
+			queryClient.invalidateQueries({ queryKey: chatProjectSummariesKey }),
 	});
 
 export const createChatProject = (queryClient: QueryClient) =>

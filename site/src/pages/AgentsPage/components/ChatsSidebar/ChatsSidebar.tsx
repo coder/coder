@@ -3,9 +3,12 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useLocation, useNavigate, useParams } from "react-router";
 import { getErrorMessage } from "#/api/errors";
 import {
+	chatProjectSummaries,
 	chatProjects,
 	createChatProject,
 	deleteChatProject,
+	getPinnedProjectSummaries,
+	joinChatProjectSummaries,
 	updateChatProject,
 } from "#/api/queries/chatProjects";
 import { userChatProviderConfigs } from "#/api/queries/chats";
@@ -119,6 +122,15 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 		...chatProjects(),
 		enabled: chatProjectsEnabled,
 	});
+	const summariesQuery = useQuery({
+		...chatProjectSummaries(),
+		enabled: chatProjectsEnabled,
+	});
+	const projectSummaries = joinChatProjectSummaries(
+		projectsQuery.data ?? [],
+		summariesQuery.data ?? [],
+	);
+	const pinnedProjects = getPinnedProjectSummaries(projectSummaries);
 	const createProjectMutation = useMutation(createChatProject(queryClient));
 	const updateProjectMutation = useMutation(updateChatProject(queryClient));
 	const deleteProjectMutation = useMutation({
@@ -257,12 +269,20 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 		<div className="relative flex size-full min-h-0 border-r overflow-hidden">
 			<ChatsPanel
 				chatProjectsEnabled={chatProjectsEnabled}
-				projects={projectsQuery.data ?? []}
+				pinnedProjects={pinnedProjects}
+				projectSummaries={projectSummaries}
 				organizations={organizations}
-				isProjectsLoading={projectsQuery.isLoading}
-				projectsError={projectsQuery.error}
-				isProjectsLoadError={projectsQuery.isLoadingError}
-				onRetryProjects={() => void projectsQuery.refetch()}
+				isPinnedProjectsLoading={
+					projectsQuery.isLoading || summariesQuery.isLoading
+				}
+				pinnedProjectsError={projectsQuery.error ?? summariesQuery.error}
+				isPinnedProjectsLoadError={
+					projectsQuery.isLoadingError || summariesQuery.isLoadingError
+				}
+				onRetryPinnedProjects={() => {
+					void projectsQuery.refetch();
+					void summariesQuery.refetch();
+				}}
 				onOpenProjectDialog={openProjectDialog}
 				onDeleteProject={openDeleteProjectDialog}
 				chats={chats}
@@ -290,7 +310,11 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 				isChatsActive={
 					!activeChatId &&
 					sidebarView.panel === "chats" &&
-					!sidebarView.projectId
+					!sidebarView.projectId &&
+					!sidebarView.projectsPage
+				}
+				isProjectsActive={
+					sidebarView.panel === "chats" && Boolean(sidebarView.projectsPage)
 				}
 				location={location}
 				currentUserId={currentUserId}
