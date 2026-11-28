@@ -111,4 +111,25 @@ func TestDynamicToolsFromSDK(t *testing.T) {
 		require.Nil(t, info.Parameters)
 		require.Nil(t, info.Required)
 	})
+
+	t.Run("PreservesRawInputSchema", func(t *testing.T) {
+		t.Parallel()
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		tools := []codersdk.DynamicTool{
+			{
+				Name:        "draft7_tool",
+				Description: "Tool with draft-07 and $defs",
+				InputSchema: json.RawMessage(`{"$schema":"http://json-schema.org/draft-07/schema#","$defs":{"Foo":{"type":"string"}},"type":"object","properties":{"foo":{"$ref":"#/$defs/Foo"}}}`),
+			},
+		}
+		result := dynamicToolsFromSDK(logger, tools)
+		require.Len(t, result, 1)
+
+		isp, ok := result[0].(interface{ InputSchema() map[string]any })
+		require.True(t, ok, "dynamicTool must implement InputSchema() map[string]any")
+		raw := isp.InputSchema()
+		require.NotNil(t, raw)
+		require.Equal(t, "http://json-schema.org/draft-07/schema#", raw["$schema"])
+		require.NotNil(t, raw["$defs"])
+	})
 }
