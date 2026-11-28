@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"math/rand/v2"
 	"regexp"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/externalauth/gitprovider"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/quartz"
 )
@@ -28,6 +30,16 @@ const (
 	// run. Decoupled from the polling interval so that a batch
 	// of concurrent HTTP calls has enough headroom to complete.
 	defaultTickTimeout = 30 * time.Second
+
+	// maxRateLimitRetryDelay caps the padded provider retry delay to bound
+	// far-future headers. Jitter is added after the cap.
+	// GitHub's primary rate limit resets within an hour, so a capped retry
+	// is never earlier than a real primary reset.
+	maxRateLimitRetryDelay = time.Hour
+
+	// maxRateLimitJitter spreads rows that share a provider reset time so
+	// they do not all become due at once.
+	maxRateLimitJitter = DiffStatusTTL
 
 	// NoTokenBackoff is the backoff duration applied to rows
 	// whose owner has no linked external-auth token. Much longer
@@ -224,20 +236,33 @@ func (w *Worker) tick(ctx context.Context) {
 			w.logger.Debug(ctx, "refresh chat diff status",
 				slog.F("chat_id", res.Request.Row.ChatID),
 				slog.Error(res.Error))
-			// Apply a longer backoff for rows whose owner has
-			// no linked token — retrying every 2 minutes is
-			// pointless until the user links their account.
-			backoff := DiffStatusTTL
-			if errors.Is(res.Error, ErrNoTokenAvailable) {
+
+			now := w.clock.Now().UTC()
+			rateLimit, isRateLimited := errors.AsType[*gitprovider.RateLimitError](res.Error)
+			var backoff time.Duration
+			switch {
+			case errors.Is(res.Error, ErrNoTokenAvailable):
+				// The owner must link an account.
 				backoff = NoTokenBackoff
+			case isRateLimited:
+				// Direct limits and in-batch skips carry
+				// the same RateLimitError.
+				backoff = min(rateLimit.RetryAfter.Sub(now), maxRateLimitRetryDelay)
+				//nolint:gosec // Jitter does not need cryptographic randomness.
+				backoff += rand.N(maxRateLimitJitter)
+			default:
+				// Rejected requests and other errors
+				// back off by DiffStatusTTL.
+				backoff = DiffStatusTTL
 			}
+
 			// Back off so the row isn't retried immediately.
 			if err := w.store.BackoffChatDiffStatus(ctx,
 				database.BackoffChatDiffStatusParams{
 					ChatID:          res.Request.Row.ChatID,
 					GitRemoteOrigin: res.Request.Row.GitRemoteOrigin,
 					GitBranch:       res.Request.Row.GitBranch,
-					StaleAt:         w.clock.Now().UTC().Add(backoff),
+					StaleAt:         now.Add(backoff),
 				},
 			); err != nil {
 				w.logger.Warn(ctx, "backoff failed chat diff status",
