@@ -13,9 +13,8 @@ type UserTabPanelProps = {
 	workspace: TypesGen.Workspace | undefined;
 	workspaceAgent: TypesGen.WorkspaceAgent | undefined;
 	wildcardHostname: string;
-	// Port tabs show the annotate control when the chat-ui-annotations
-	// experiment is on and the chat accepts messages from this user.
 	canAnnotate: boolean;
+	isAgentWorking: boolean;
 	onSendToolMessage?: (message: string) => Promise<SubmitChatTurnResult>;
 	isPending: boolean;
 	onTerminalReady: (tabId: string) => void;
@@ -32,6 +31,7 @@ export const UserTabPanel: React.FC<UserTabPanelProps> = ({
 	workspaceAgent,
 	wildcardHostname,
 	canAnnotate,
+	isAgentWorking,
 	onSendToolMessage,
 	isPending,
 	onTerminalReady,
@@ -76,6 +76,7 @@ export const UserTabPanel: React.FC<UserTabPanelProps> = ({
 					host={wildcardHostname}
 					tab={tab}
 					canAnnotate={canAnnotate}
+					isAgentWorking={isAgentWorking}
 					onSendToolMessage={onSendToolMessage}
 				/>
 			);

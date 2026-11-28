@@ -886,6 +886,10 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 										workspaceAgent={workspaceAgent}
 										wildcardHostname={wildcardHostname}
 										canAnnotate={experiments.includes("chat-ui-annotations")}
+										isAgentWorking={
+											liveChatStatus === "running" ||
+											liveChatStatus === "interrupting"
+										}
 										onSendToolMessage={
 											!isInputDisabled && !isOtherUserReadOnly
 												? onSendToolMessage
