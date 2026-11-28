@@ -29,6 +29,9 @@ func StripCoderCookies(header string) string {
 			// subdomain hostname. See the workspaceapps package for more
 			// details.
 			strings.HasPrefix(name, codersdk.SubdomainAppSessionTokenCookie) ||
+			// Preview hosts use the __Host- name over HTTPS and the plain
+			// name over HTTP, so strip both.
+			strings.TrimPrefix(name, "__Host-") == codersdk.PreviewSessionTokenCookie ||
 			name == codersdk.SignedAppTokenCookie {
 			continue
 		}

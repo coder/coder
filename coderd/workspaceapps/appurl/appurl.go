@@ -154,6 +154,7 @@ func (a *ApplicationURL) ChangePortProtocol(target string) ApplicationURL {
 //
 // Where agent name is:
 //   - REQUIRED for ports: 8080--agent--workspace--user, 8080s--agent--workspace--user
+//   - REQUIRED for previews: preview--0123abcd--agent--workspace--user, preview--8080--agent--workspace--user
 //   - OPTIONAL for app slugs: myapp--workspace--user (agent name omitted)
 //
 // Examples:
@@ -177,6 +178,23 @@ func ParseSubdomainAppURL(subdomain string) (ApplicationURL, error) {
 	if len(prefixSegments) > 1 {
 		prefix = strings.Join(prefixSegments[:len(prefixSegments)-1], "---") + "---"
 		subdomain = prefixSegments[len(prefixSegments)-1]
+	}
+
+	if rest, ok := strings.CutPrefix(subdomain, PreviewSlugPrefix); ok {
+		matches := appURL.FindStringSubmatch(rest)
+		if matches != nil {
+			slug := PreviewSlugPrefix + matches[appURL.SubexpIndex("AppSlug")]
+			agentName := matches[appURL.SubexpIndex("AgentName")]
+			if _, ok := ParsePreviewSlug(slug); ok && agentName != "" {
+				return ApplicationURL{
+					Prefix:        prefix,
+					AppSlugOrPort: slug,
+					AgentName:     agentName,
+					WorkspaceName: matches[appURL.SubexpIndex("WorkspaceName")],
+					Username:      matches[appURL.SubexpIndex("Username")],
+				}, nil
+			}
+		}
 	}
 
 	matches := appURL.FindStringSubmatch(subdomain)

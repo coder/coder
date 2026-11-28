@@ -63,6 +63,10 @@ const (
 	// a hash suffix to the cookie name.
 	//nolint:gosec
 	SubdomainAppSessionTokenCookie = "coder_subdomain_app_session_token"
+	// PreviewSessionTokenCookie is the name of the host-only cookie that
+	// stores an application-scoped API token on one preview host.
+	//nolint:gosec // G101: cookie name, not a hardcoded credential.
+	PreviewSessionTokenCookie = "coder_preview_session_token"
 	// SignedAppTokenCookie is the name of the cookie that stores a temporary
 	// JWT that can be used to authenticate instead of the app session token.
 	//nolint:gosec
