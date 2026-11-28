@@ -4347,6 +4347,10 @@ func TestReadCustomRoles(t *testing.T) {
 				}
 			}
 
+			// Names are unique, so this matches ORDER BY name, organization_id.
+			slices.SortFunc(filtered, func(x, y database.CustomRole) int {
+				return strings.Compare(x.Name, y.Name)
+			})
 			a := slice.List(filtered, normalizedRoleName)
 			b := slice.List(found, normalizedRoleName)
 			require.Equal(t, a, b)
