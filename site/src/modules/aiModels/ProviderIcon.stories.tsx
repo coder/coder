@@ -57,6 +57,18 @@ export const OpenRouter: Story = {
 	},
 };
 
+export const OpenCodeGo: Story = {
+	args: {
+		provider: "opencode-go",
+	},
+};
+
+export const ZAI: Story = {
+	args: {
+		provider: "zai",
+	},
+};
+
 // Provider types without a bundled icon (openai-compat or anything we don't
 // recognize) render the generic Building2 glyph.
 export const Fallback: Story = {

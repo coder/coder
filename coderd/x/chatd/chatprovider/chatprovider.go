@@ -466,6 +466,10 @@ func NormalizeProvider(provider string) string {
 		return fantasyopenrouter.Name
 	case fantasyvercel.Name:
 		return fantasyvercel.Name
+	case string(database.AIProviderTypeZai):
+		return string(database.AIProviderTypeZai)
+	case string(database.AIProviderTypeOpencodeGo):
+		return string(database.AIProviderTypeOpencodeGo)
 	default:
 		return ""
 	}

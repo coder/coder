@@ -739,8 +739,10 @@ export type AIProviderType =
 	| "google"
 	| "openai"
 	| "openai-compat"
+	| "opencode-go"
 	| "openrouter"
-	| "vercel";
+	| "vercel"
+	| "zai";
 
 export const AIProviderTypes: AIProviderType[] = [
 	"anthropic",
@@ -750,8 +752,10 @@ export const AIProviderTypes: AIProviderType[] = [
 	"google",
 	"openai",
 	"openai-compat",
+	"opencode-go",
 	"openrouter",
 	"vercel",
+	"zai",
 ];
 
 // From codersdk/aibridge.go

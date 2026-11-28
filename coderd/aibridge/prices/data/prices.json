@@ -3536,6 +3536,350 @@
     "cache_write_price": null
   },
   {
+    "provider": "opencode-go",
+    "model": "beam-free",
+    "input_price": 0,
+    "output_price": 0,
+    "cache_read_price": 0,
+    "cache_write_price": null
+  },
+  {
+    "provider": "opencode-go",
+    "model": "cat-jam-free",
+    "input_price": 0,
+    "output_price": 0,
+    "cache_read_price": 0,
+    "cache_write_price": null
+  },
+  {
+    "provider": "opencode-go",
+    "model": "claude-haiku-5-5",
+    "input_price": 100000,
+    "output_price": 500000,
+    "cache_read_price": 10000,
+    "cache_write_price": 125000
+  },
+  {
+    "provider": "opencode-go",
+    "model": "crouton-alpha-free",
+    "input_price": 0,
+    "output_price": 0,
+    "cache_read_price": 0,
+    "cache_write_price": null
+  },
+  {
+    "provider": "opencode-go",
+    "model": "deepseek-v4-pro",
+    "input_price": 660000,
+    "output_price": 1980000,
+    "cache_read_price": 22000,
+    "cache_write_price": null
+  },
+  {
+    "provider": "opencode-go",
+    "model": "deepseek-v4.1-flash",
+    "input_price": 150000,
+    "output_price": 600000,
+    "cache_read_price": 3000,
+    "cache_write_price": null
+  },
+  {
+    "provider": "opencode-go",
+    "model": "gemini-4-argon",
+    "input_price": 2000000,
+    "output_price": 10000000,
+    "cache_read_price": 100000,
+    "cache_write_price": null
+  },
+  {
+    "provider": "opencode-go",
+    "model": "gemini-4-argon-contributor",
+    "input_price": 4000000,
+    "output_price": 20000000,
+    "cache_read_price": 200000,
+    "cache_write_price": null
+  },
+  {
+    "provider": "opencode-go",
+    "model": "glm-5.2",
+    "input_price": 1400000,
+    "output_price": 4400000,
+    "cache_read_price": 260000,
+    "cache_write_price": null
+  },
+  {
+    "provider": "opencode-go",
+    "model": "glm-5.3",
+    "input_price": 1400000,
+    "output_price": 4400000,
+    "cache_read_price": 260000,
+    "cache_write_price": null
+  },
+  {
+    "provider": "opencode-go",
+    "model": "glm-5.3-flash",
+    "input_price": 150000,
+    "output_price": 500000,
+    "cache_read_price": 30000,
+    "cache_write_price": null
+  },
+  {
+    "provider": "opencode-go",
+    "model": "gpt-5.6-luna",
+    "input_price": 200000,
+    "output_price": 1200000,
+    "cache_read_price": 20000,
+    "cache_write_price": 250000
+  },
+  {
+    "provider": "opencode-go",
+    "model": "gpt-6-luna",
+    "input_price": 100000,
+    "output_price": 500000,
+    "cache_read_price": 10000,
+    "cache_write_price": 125000
+  },
+  {
+    "provider": "opencode-go",
+    "model": "grok-4.7",
+    "input_price": 2000000,
+    "output_price": 6000000,
+    "cache_read_price": 500000,
+    "cache_write_price": null
+  },
+  {
+    "provider": "opencode-go",
+    "model": "hy3",
+    "input_price": 140000,
+    "output_price": 580000,
+    "cache_read_price": 35000,
+    "cache_write_price": null
+  },
+  {
+    "provider": "opencode-go",
+    "model": "hy4",
+    "input_price": 834000,
+    "output_price": 2501000,
+    "cache_read_price": 42000,
+    "cache_write_price": null
+  },
+  {
+    "provider": "opencode-go",
+    "model": "hy4-flash-free",
+    "input_price": 0,
+    "output_price": 0,
+    "cache_read_price": 0,
+    "cache_write_price": null
+  },
+  {
+    "provider": "opencode-go",
+    "model": "hy4-preview",
+    "input_price": 834000,
+    "output_price": 2501000,
+    "cache_read_price": 42000,
+    "cache_write_price": null
+  },
+  {
+    "provider": "opencode-go",
+    "model": "iceman-contributor-free",
+    "input_price": 0,
+    "output_price": 0,
+    "cache_read_price": 0,
+    "cache_write_price": null
+  },
+  {
+    "provider": "opencode-go",
+    "model": "kimi-k2.7-code",
+    "input_price": 950000,
+    "output_price": 4000000,
+    "cache_read_price": 190000,
+    "cache_write_price": null
+  },
+  {
+    "provider": "opencode-go",
+    "model": "kimi-k3",
+    "input_price": 3000000,
+    "output_price": 15000000,
+    "cache_read_price": 300000,
+    "cache_write_price": 3000000
+  },
+  {
+    "provider": "opencode-go",
+    "model": "kimi-k3.1-pro",
+    "input_price": 2000000,
+    "output_price": 10000000,
+    "cache_read_price": 200000,
+    "cache_write_price": 2000000
+  },
+  {
+    "provider": "opencode-go",
+    "model": "longcat-2.0",
+    "input_price": 300000,
+    "output_price": 1200000,
+    "cache_read_price": 6000,
+    "cache_write_price": null
+  },
+  {
+    "provider": "opencode-go",
+    "model": "longcat-2.5",
+    "input_price": 300000,
+    "output_price": 1200000,
+    "cache_read_price": 6000,
+    "cache_write_price": 0
+  },
+  {
+    "provider": "opencode-go",
+    "model": "longcat-2.5-free",
+    "input_price": 0,
+    "output_price": 0,
+    "cache_read_price": 0,
+    "cache_write_price": null
+  },
+  {
+    "provider": "opencode-go",
+    "model": "longcat-2.5-preview-free",
+    "input_price": 0,
+    "output_price": 0,
+    "cache_read_price": 0,
+    "cache_write_price": null
+  },
+  {
+    "provider": "opencode-go",
+    "model": "mimo-v2.5",
+    "input_price": 140000,
+    "output_price": 280000,
+    "cache_read_price": 2800,
+    "cache_write_price": null
+  },
+  {
+    "provider": "opencode-go",
+    "model": "mimo-v2.5-pro",
+    "input_price": 435000,
+    "output_price": 870000,
+    "cache_read_price": 3625,
+    "cache_write_price": null
+  },
+  {
+    "provider": "opencode-go",
+    "model": "mimo-v2.6-flash",
+    "input_price": 140000,
+    "output_price": 280000,
+    "cache_read_price": 2800,
+    "cache_write_price": null
+  },
+  {
+    "provider": "opencode-go",
+    "model": "mimo-v2.6-pro",
+    "input_price": 435000,
+    "output_price": 870000,
+    "cache_read_price": 3625,
+    "cache_write_price": null
+  },
+  {
+    "provider": "opencode-go",
+    "model": "minimax-m2.7",
+    "input_price": 300000,
+    "output_price": 1200000,
+    "cache_read_price": 60000,
+    "cache_write_price": 375000
+  },
+  {
+    "provider": "opencode-go",
+    "model": "minimax-m3",
+    "input_price": 300000,
+    "output_price": 1200000,
+    "cache_read_price": 60000,
+    "cache_write_price": null
+  },
+  {
+    "provider": "opencode-go",
+    "model": "minimax-m3.1-flash",
+    "input_price": 150000,
+    "output_price": 600000,
+    "cache_read_price": 15000,
+    "cache_write_price": null
+  },
+  {
+    "provider": "opencode-go",
+    "model": "minimax-m3.1-flash-free",
+    "input_price": 0,
+    "output_price": 0,
+    "cache_read_price": 0,
+    "cache_write_price": null
+  },
+  {
+    "provider": "opencode-go",
+    "model": "muse-spark-1.2-contributor",
+    "input_price": 100000,
+    "output_price": 200000,
+    "cache_read_price": 2000,
+    "cache_write_price": null
+  },
+  {
+    "provider": "opencode-go",
+    "model": "muse-spark-1.3-contributor",
+    "input_price": 100000,
+    "output_price": 200000,
+    "cache_read_price": 2000,
+    "cache_write_price": null
+  },
+  {
+    "provider": "opencode-go",
+    "model": "qwen3.7-plus",
+    "input_price": 400000,
+    "output_price": 1600000,
+    "cache_read_price": 40000,
+    "cache_write_price": 500000
+  },
+  {
+    "provider": "opencode-go",
+    "model": "qwen3.8-flash",
+    "input_price": 150000,
+    "output_price": 470000,
+    "cache_read_price": 16000,
+    "cache_write_price": 200000
+  },
+  {
+    "provider": "opencode-go",
+    "model": "qwen3.8-max",
+    "input_price": 2000000,
+    "output_price": 6000000,
+    "cache_read_price": 250000,
+    "cache_write_price": 2500000
+  },
+  {
+    "provider": "opencode-go",
+    "model": "qwen4-max",
+    "input_price": 1500000,
+    "output_price": 4500000,
+    "cache_read_price": 75000,
+    "cache_write_price": 1875000
+  },
+  {
+    "provider": "opencode-go",
+    "model": "space-bunny",
+    "input_price": 150000,
+    "output_price": 600000,
+    "cache_read_price": 30000,
+    "cache_write_price": 0
+  },
+  {
+    "provider": "opencode-go",
+    "model": "step-5-preview",
+    "input_price": 1000000,
+    "output_price": 2700000,
+    "cache_read_price": 100000,
+    "cache_write_price": null
+  },
+  {
+    "provider": "opencode-go",
+    "model": "step-5-preview-free",
+    "input_price": 0,
+    "output_price": 0,
+    "cache_read_price": 0,
+    "cache_write_price": null
+  },
+  {
     "provider": "openrouter",
     "model": "aion-labs/aion-2.0",
     "input_price": 800000,
@@ -8774,5 +9118,69 @@
     "output_price": 4000000,
     "cache_read_price": 240000,
     "cache_write_price": null
+  },
+  {
+    "provider": "zai",
+    "model": "glm-4.7",
+    "input_price": 0,
+    "output_price": 0,
+    "cache_read_price": 0,
+    "cache_write_price": 0
+  },
+  {
+    "provider": "zai",
+    "model": "glm-5-turbo",
+    "input_price": 0,
+    "output_price": 0,
+    "cache_read_price": 0,
+    "cache_write_price": 0
+  },
+  {
+    "provider": "zai",
+    "model": "glm-5.2",
+    "input_price": 0,
+    "output_price": 0,
+    "cache_read_price": 0,
+    "cache_write_price": 0
+  },
+  {
+    "provider": "zai",
+    "model": "glm-5.2-highspeed",
+    "input_price": 0,
+    "output_price": 0,
+    "cache_read_price": 0,
+    "cache_write_price": 0
+  },
+  {
+    "provider": "zai",
+    "model": "glm-5.3",
+    "input_price": 0,
+    "output_price": 0,
+    "cache_read_price": 0,
+    "cache_write_price": 0
+  },
+  {
+    "provider": "zai",
+    "model": "glm-5.3-flash",
+    "input_price": 0,
+    "output_price": 0,
+    "cache_read_price": 0,
+    "cache_write_price": 0
+  },
+  {
+    "provider": "zai",
+    "model": "glm-5.3-highspeed",
+    "input_price": 0,
+    "output_price": 0,
+    "cache_read_price": 0,
+    "cache_write_price": 0
+  },
+  {
+    "provider": "zai",
+    "model": "glm-5.4",
+    "input_price": 0,
+    "output_price": 0,
+    "cache_read_price": 0,
+    "cache_write_price": 0
   }
 ]

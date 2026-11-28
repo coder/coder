@@ -59,6 +59,8 @@ func TestAIProvidersCRUD(t *testing.T) {
 			{providerType: codersdk.AIProviderTypeOpenAICompat, baseURL: "https://compat.example.com/v1"},
 			{providerType: codersdk.AIProviderTypeOpenrouter, baseURL: "https://openrouter.ai/api/v1"},
 			{providerType: codersdk.AIProviderTypeVercel, baseURL: "https://ai-gateway.vercel.sh/v1"},
+			{providerType: codersdk.AIProviderTypeZAI, baseURL: "https://api.z.ai/api/coding/paas/v4"},
+			{providerType: codersdk.AIProviderTypeOpenCodeGo, baseURL: "https://opencode.ai/inference/go/openai/v1"},
 		}
 		for _, tt := range tests {
 			t.Run(string(tt.providerType), func(t *testing.T) {

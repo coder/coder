@@ -1,0 +1,1 @@
+-- Preserve provider configurations that already use the new enum values.

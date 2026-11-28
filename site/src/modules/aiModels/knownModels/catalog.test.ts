@@ -52,6 +52,24 @@ describe("formatContextBadge", () => {
 });
 
 describe("getKnownModelsForProvider", () => {
+	it("lists GLM-5.3 with zero per-token charges for Z.ai Coding Plan", () => {
+		expect(searchKnownModels("zai", "glm-5.3")).toContainEqual(
+			expect.objectContaining({
+				modelIdentifier: "glm-5.3",
+				inputCost: 0,
+				outputCost: 0,
+			}),
+		);
+	});
+
+	it("lists GLM-5.3 with metered rates for OpenCode Go", () => {
+		const model = searchKnownModels("opencode-go", "glm-5.3").find(
+			(model) => model.modelIdentifier === "glm-5.3",
+		);
+		expect(model?.inputCost).toBeGreaterThan(0);
+		expect(model?.outputCost).toBeGreaterThan(0);
+	});
+
 	it("returns unsupported provider as an empty list", () => {
 		expect(getKnownModelsForProvider("openai-compat")).toEqual([]);
 	});

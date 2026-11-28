@@ -24,7 +24,9 @@ CREATE TYPE ai_provider_type AS ENUM (
     'openai-compat',
     'openrouter',
     'vercel',
-    'copilot'
+    'copilot',
+    'zai',
+    'opencode-go'
 );
 
 CREATE TYPE ai_seat_usage_reason AS ENUM (

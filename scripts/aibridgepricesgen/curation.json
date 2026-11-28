@@ -257,6 +257,62 @@
 			"reasoningEffort": "medium"
 		}
 	],
+	"opencode-go": [
+		{
+			"modelIdentifier": "glm-5.3"
+		},
+		{
+			"modelIdentifier": "glm-5.3-flash"
+		},
+		{
+			"modelIdentifier": "glm-5.2"
+		},
+		{
+			"modelIdentifier": "kimi-k3.1-pro"
+		},
+		{
+			"modelIdentifier": "kimi-k3"
+		},
+		{
+			"modelIdentifier": "kimi-k2.7-code"
+		},
+		{
+			"modelIdentifier": "deepseek-v4-pro"
+		},
+		{
+			"modelIdentifier": "deepseek-v4.1-flash"
+		},
+		{
+			"modelIdentifier": "minimax-m3"
+		},
+		{
+			"modelIdentifier": "minimax-m3.1-flash"
+		},
+		{
+			"modelIdentifier": "mimo-v2.6-pro"
+		},
+		{
+			"modelIdentifier": "mimo-v2.6-flash"
+		},
+		{
+			"modelIdentifier": "qwen4-max"
+		},
+		{
+			"modelIdentifier": "qwen3.8-max"
+		},
+		{
+			"modelIdentifier": "qwen3.8-flash"
+		},
+		{
+			"modelIdentifier": "gemini-4-argon"
+		},
+		{
+			"modelIdentifier": "gpt-6-luna"
+		},
+		{
+			"modelIdentifier": "beam-free"
+		}
+	],
 	"openrouter": [
 		{
 			"modelIdentifier": "openai/gpt-6.2-astra"
@@ -498,6 +554,32 @@
 		},
 		{
 			"modelIdentifier": "minimax/minimax-m3"
+		}
+	],
+	"zai": [
+		{
+			"modelIdentifier": "glm-5.4"
+		},
+		{
+			"modelIdentifier": "glm-5.3"
+		},
+		{
+			"modelIdentifier": "glm-5.3-highspeed"
+		},
+		{
+			"modelIdentifier": "glm-5.3-flash"
+		},
+		{
+			"modelIdentifier": "glm-5.2"
+		},
+		{
+			"modelIdentifier": "glm-5.2-highspeed"
+		},
+		{
+			"modelIdentifier": "glm-5-turbo"
+		},
+		{
+			"modelIdentifier": "glm-4.7"
 		}
 	]
 }
