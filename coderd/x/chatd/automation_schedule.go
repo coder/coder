@@ -82,7 +82,7 @@ func (p *Server) runScheduleOccurrence(ctx context.Context, automation database.
 		})
 		return
 	}
-	_, err := p.runAutomation(ctx, automation, automationTriggerSchedule)
+	_, err := p.runAutomation(ctx, automation, automationRun{trigger: automationTriggerSchedule})
 	if err != nil && !errors.Is(err, ErrAutomationChanged) && ctx.Err() == nil {
 		p.logger.Warn(ctx, "run chat automation schedule",
 			slog.F("automation_id", automation.ID),

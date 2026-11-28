@@ -1467,6 +1467,69 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().UpdateChatAutomationEnabled(gomock.Any(), arg).Return(automation, nil).AnyTimes()
 		check.Args(arg).Asserts(automation, policy.ActionUpdate).Returns(automation)
 	}))
+	s.Run("ClaimDueChatAutomationMCPPolls", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.ClaimDueChatAutomationMCPPollsParams{Now: dbtime.Now()}
+		dbm.EXPECT().ClaimDueChatAutomationMCPPolls(gomock.Any(), arg).Return([]database.ClaimDueChatAutomationMCPPollsRow{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceChatAutomation, policy.ActionUpdate).Returns([]database.ClaimDueChatAutomationMCPPollsRow{})
+	}))
+	s.Run("ClaimChatAutomationInboxDrains", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.ClaimChatAutomationInboxDrainsParams{Now: dbtime.Now()}
+		dbm.EXPECT().ClaimChatAutomationInboxDrains(gomock.Any(), arg).Return([]database.ChatAutomationMCPSubscription{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceChatAutomation, policy.ActionUpdate).Returns([]database.ChatAutomationMCPSubscription{})
+	}))
+	s.Run("SetChatAutomationMCPDrainAfter", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.SetChatAutomationMCPDrainAfterParams{AutomationID: uuid.New()}
+		dbm.EXPECT().SetChatAutomationMCPDrainAfter(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceChatAutomation, policy.ActionUpdate)
+	}))
+	s.Run("UpdateChatAutomationMCPCursor", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.UpdateChatAutomationMCPCursorParams{AutomationID: uuid.New()}
+		dbm.EXPECT().UpdateChatAutomationMCPCursor(gomock.Any(), arg).Return(int64(1), nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceChatAutomation, policy.ActionUpdate).Returns(int64(1))
+	}))
+	s.Run("TerminateChatAutomationMCPSubscription", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.TerminateChatAutomationMCPSubscriptionParams{AutomationID: uuid.New()}
+		dbm.EXPECT().TerminateChatAutomationMCPSubscription(gomock.Any(), arg).Return(int64(1), nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceChatAutomation, policy.ActionUpdate).Returns(int64(1))
+	}))
+	s.Run("InsertChatAutomationInboxEvents", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.InsertChatAutomationInboxEventsParams{AutomationID: uuid.New()}
+		dbm.EXPECT().InsertChatAutomationInboxEvents(gomock.Any(), arg).Return(int64(1), nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceChatAutomation, policy.ActionUpdate).Returns(int64(1))
+	}))
+	s.Run("InsertChatAutomationInboxNotice", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.InsertChatAutomationInboxNoticeParams{AutomationID: uuid.New()}
+		dbm.EXPECT().InsertChatAutomationInboxNotice(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceChatAutomation, policy.ActionUpdate)
+	}))
+	s.Run("MarkChatAutomationInboxDelivered", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.MarkChatAutomationInboxDeliveredParams{AutomationID: uuid.New()}
+		dbm.EXPECT().MarkChatAutomationInboxDelivered(gomock.Any(), arg).Return(int64(1), nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceChatAutomation, policy.ActionUpdate).Returns(int64(1))
+	}))
+	s.Run("GetPendingChatAutomationInboxRows", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.GetPendingChatAutomationInboxRowsParams{AutomationID: uuid.New()}
+		dbm.EXPECT().GetPendingChatAutomationInboxRows(gomock.Any(), arg).Return([]database.ChatAutomationEventInbox{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceChatAutomation, policy.ActionRead).Returns([]database.ChatAutomationEventInbox{})
+	}))
+	s.Run("GetChatAutomationMCPSubscriptionsByAutomationIDs", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		ids := []uuid.UUID{uuid.New()}
+		dbm.EXPECT().GetChatAutomationMCPSubscriptionsByAutomationIDs(gomock.Any(), ids).Return([]database.ChatAutomationMCPSubscription{}, nil).AnyTimes()
+		check.Args(ids).Asserts(rbac.ResourceChatAutomation, policy.ActionRead).Returns([]database.ChatAutomationMCPSubscription{})
+	}))
+	s.Run("InsertChatAutomationMCPSubscription", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		automation := testutil.Fake(s.T(), faker, database.ChatAutomation{})
+		arg := database.InsertChatAutomationMCPSubscriptionParams{AutomationID: automation.ID}
+		sub := database.ChatAutomationMCPSubscription{AutomationID: automation.ID}
+		dbm.EXPECT().GetChatAutomationByID(gomock.Any(), automation.ID).Return(automation, nil).AnyTimes()
+		dbm.EXPECT().InsertChatAutomationMCPSubscription(gomock.Any(), arg).Return(sub, nil).AnyTimes()
+		check.Args(arg).Asserts(automation, policy.ActionUpdate).Returns(sub)
+	}))
+	s.Run("DeleteOldChatAutomationInboxRows", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.DeleteOldChatAutomationInboxRowsParams{BeforeTime: dbtime.Now(), LimitCount: 10}
+		dbm.EXPECT().DeleteOldChatAutomationInboxRows(gomock.Any(), arg).Return(int64(1), nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionDelete).Returns(int64(1))
+	}))
 	s.Run("CountActiveChatsByAutomationID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		id := uuid.New()
 		dbm.EXPECT().CountActiveChatsByAutomationID(gomock.Any(), id).Return(int64(1), nil).AnyTimes()
@@ -2415,6 +2478,20 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().GetMCPServerUserTokenByID(gomock.Any(), token.ID).Return(token, nil).AnyTimes()
 		dbm.EXPECT().UpdateMCPServerUserTokenFromRefresh(gomock.Any(), arg).Return(token, nil).AnyTimes()
 		check.Args(arg).Asserts(token, policy.ActionUpdatePersonal).Returns(token)
+	}))
+	s.Run("ClaimMCPServerUserTokenRefresh", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		token := testutil.Fake(s.T(), faker, database.MCPServerUserToken{})
+		arg := database.ClaimMCPServerUserTokenRefreshParams{ID: token.ID, UpdatedAt: token.UpdatedAt, LeaseSeconds: 15}
+		dbm.EXPECT().GetMCPServerUserTokenByID(gomock.Any(), token.ID).Return(token, nil).AnyTimes()
+		dbm.EXPECT().ClaimMCPServerUserTokenRefresh(gomock.Any(), arg).Return(token.UpdatedAt, nil).AnyTimes()
+		check.Args(arg).Asserts(token, policy.ActionUpdatePersonal).Returns(token.UpdatedAt)
+	}))
+	s.Run("ReleaseMCPServerUserTokenRefresh", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		token := testutil.Fake(s.T(), faker, database.MCPServerUserToken{})
+		arg := database.ReleaseMCPServerUserTokenRefreshParams{ID: token.ID, UpdatedAt: token.UpdatedAt}
+		dbm.EXPECT().GetMCPServerUserTokenByID(gomock.Any(), token.ID).Return(token, nil).AnyTimes()
+		dbm.EXPECT().ReleaseMCPServerUserTokenRefresh(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(token, policy.ActionUpdatePersonal).Returns()
 	}))
 	s.Run("UpsertMCPServerUserToken", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		arg := database.UpsertMCPServerUserTokenParams{

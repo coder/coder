@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"cmp"
 	"context"
+	"database/sql"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -34,7 +35,9 @@ import (
 	aidmcp "github.com/coder/coder/v2/aibridge/mcp"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/x/chatfiles"
+	"github.com/coder/quartz"
 	"github.com/coder/safedial"
 )
 
@@ -521,28 +524,7 @@ func connectOne(
 	if opts.kind == connectionKindInProcess {
 		tr, err = inMemoryTransport(opts.inProcessServers[srv.ID])
 	} else {
-		headers := buildAuthHeaders(ctx, logger, srv, tokensByConfigID, userID, oidcSrc)
-
-		// When opted-in, merge Coder identity headers BEFORE the
-		// transport is created so any auth header already set above
-		// wins on a conflict. Conflict detection uses
-		// http.CanonicalHeaderKey because the upstream transport applies
-		// http.Header.Set, which canonicalizes keys; without that, an
-		// admin-configured header that differs only in case from a Coder
-		// identity header would land in the request map twice and the
-		// surviving value would be non-deterministic.
-		if srv.ForwardCoderHeaders {
-			canonicalAuth := make(map[string]struct{}, len(headers))
-			for k := range headers {
-				canonicalAuth[http.CanonicalHeaderKey(k)] = struct{}{}
-			}
-			for k, v := range coderHeaders {
-				if _, exists := canonicalAuth[http.CanonicalHeaderKey(k)]; exists {
-					continue
-				}
-				headers[k] = v
-			}
-		}
+		headers := buildAuthHeaders(ctx, logger, srv, tokensByConfigID, userID, oidcSrc, coderHeaders)
 
 		maxEventSize := 0
 		if opts.kind == connectionKindInline {
@@ -786,7 +768,8 @@ func createTransport(
 
 // buildAuthHeaders constructs HTTP headers for authenticating with the
 // MCP server: the static headers on the Server plus any per-user
-// credential selected by UserAuth.
+// credential selected by UserAuth and, when the server opts in, the
+// Coder identity headers.
 func buildAuthHeaders(
 	ctx context.Context,
 	logger slog.Logger,
@@ -794,6 +777,7 @@ func buildAuthHeaders(
 	tokensByConfigID map[uuid.UUID]database.MCPServerUserToken,
 	userID uuid.UUID,
 	oidcSrc UserOIDCTokenSource,
+	coderHeaders map[string]string,
 ) map[string]string {
 	headers := maps.Clone(srv.Headers)
 	if headers == nil {
@@ -881,6 +865,26 @@ func buildAuthHeaders(
 		headers["Authorization"] = "Bearer " + token
 	case UserAuthNone:
 		// Only the static headers apply.
+	}
+
+	// When opted-in, merge Coder identity headers last so any auth
+	// header set above wins on a conflict. Conflict detection uses
+	// http.CanonicalHeaderKey because the upstream transport applies
+	// http.Header.Set, which canonicalizes keys; without that, an
+	// admin-configured header that differs only in case from a Coder
+	// identity header would land in the request map twice and the
+	// surviving value would be non-deterministic.
+	if srv.ForwardCoderHeaders {
+		canonicalAuth := make(map[string]struct{}, len(headers))
+		for k := range headers {
+			canonicalAuth[http.CanonicalHeaderKey(k)] = struct{}{}
+		}
+		for k, v := range coderHeaders {
+			if _, exists := canonicalAuth[http.CanonicalHeaderKey(k)]; exists {
+				continue
+			}
+			headers[k] = v
+		}
 	}
 
 	return headers
@@ -1608,6 +1612,18 @@ func RefreshFailureReason(err error) string {
 	return reason
 }
 
+func oauth2Token(tok database.MCPServerUserToken) *oauth2.Token {
+	t := &oauth2.Token{
+		AccessToken:  tok.AccessToken,
+		RefreshToken: tok.RefreshToken,
+		TokenType:    tok.TokenType,
+	}
+	if tok.Expiry.Valid {
+		t.Expiry = tok.Expiry.Time
+	}
+	return t
+}
+
 // RefreshOAuth2Token checks whether the given MCP user token is
 // expired (or within 10 seconds of expiry) and refreshes it using
 // the OAuth2 credentials from the server config, sending the config's
@@ -1622,14 +1638,7 @@ func RefreshOAuth2Token(
 	cfg database.MCPServerConfig,
 	tok database.MCPServerUserToken,
 ) (RefreshResult, error) {
-	oldToken := &oauth2.Token{
-		AccessToken:  tok.AccessToken,
-		RefreshToken: tok.RefreshToken,
-		TokenType:    tok.TokenType,
-	}
-	if tok.Expiry.Valid {
-		oldToken.Expiry = tok.Expiry.Time
-	}
+	oldToken := oauth2Token(tok)
 	// Valid uses a 10-second expiry window, so tokens about to
 	// expire are also refreshed proactively.
 	if oldToken.Valid() {
@@ -1693,6 +1702,178 @@ func RefreshOAuth2Token(
 		Expiry:       newToken.Expiry,
 		Refreshed:    refreshed,
 	}, nil
+}
+
+// refreshSaveTimeout bounds the claimant's save of the provider's
+// response.
+const refreshSaveTimeout = 5 * time.Second
+
+// refreshLease is when a refresh claim lapses if its claimant never ends
+// it, for example because it crashed. It covers the provider call that
+// RefreshOAuth2Token bounds with connectTimeout and the save that
+// refreshSaveTimeout bounds, with a margin for the round trips around
+// them, so a claim does not lapse before its result lands.
+const refreshLease = connectTimeout + refreshSaveTimeout + 5*time.Second
+
+// refreshPollInterval is how often a refresher that lost the claim
+// re-reads the token while it waits for the claimant.
+const refreshPollInterval = 250 * time.Millisecond
+
+// RefreshUserToken refreshes tok when it expires within 10 seconds and
+// returns the row the caller should use. Authorization servers rotate
+// refresh tokens and may revoke the whole grant when a spent one comes
+// back, so concurrent callers must spend each refresh token once. A
+// caller first claims the row (ClaimMCPServerUserTokenRefresh), calls the
+// provider with no transaction open, and persists against its claim.
+// A caller that loses the claim re-reads the row until the claim ends and
+// then uses the row as it is, so it makes or waits for at most one
+// provider call.
+//
+// ctx must allow reading the token; writes run as the token owner. A
+// transient provider failure is logged and returns the current row with
+// a nil error, so a returned error is a database error or ctx's. A
+// deleted row comes back as tok without credentials.
+func RefreshUserToken(
+	ctx context.Context,
+	logger slog.Logger,
+	clock quartz.Clock,
+	store database.Store,
+	httpClient *http.Client,
+	cfg database.MCPServerConfig,
+	tok database.MCPServerUserToken,
+) (database.MCPServerUserToken, error) {
+	if cfg.AuthType != "oauth2" {
+		return tok, nil
+	}
+	logger = logger.With(slog.F("server_slug", cfg.Slug), slog.F("user_id", tok.UserID))
+	ownerCtx := dbauthz.AsChatdTokenOwner(ctx, tok.UserID)
+	waited := false
+	for {
+		if tok.RefreshToken == "" || tok.OauthRefreshFailureReason != "" || oauth2Token(tok).Valid() {
+			return tok, nil
+		}
+		claimedAt, err := store.ClaimMCPServerUserTokenRefresh(ownerCtx, database.ClaimMCPServerUserTokenRefreshParams{
+			ID:           tok.ID,
+			UpdatedAt:    tok.UpdatedAt,
+			LeaseSeconds: refreshLease.Seconds(),
+		})
+		if err == nil {
+			tok.UpdatedAt = claimedAt
+			return refreshClaimedUserToken(ctx, ownerCtx, logger, store, httpClient, cfg, tok)
+		}
+		if !errors.Is(err, sql.ErrNoRows) {
+			return tok, xerrors.Errorf("claim MCP oauth2 token refresh: %w", err)
+		}
+		cur, err := currentUserToken(ctx, store, tok)
+		if err != nil {
+			return cur, err
+		}
+		sameVersion := cur.UpdatedAt.Equal(tok.UpdatedAt)
+		if waited && !sameVersion {
+			// The claim this caller waited on ended. A claimant that got no
+			// token leaves the stored one, which this call uses rather than
+			// claiming again.
+			return cur, nil
+		}
+		// A deleted row also comes back with tok's version, but without
+		// credentials.
+		if sameVersion && cur.RefreshToken != "" {
+			// Another refresher holds a live claim on this version.
+			waited = true
+			timer := clock.NewTimer(refreshPollInterval, "RefreshUserToken", "poll")
+			select {
+			case <-ctx.Done():
+				timer.Stop()
+				return cur, ctx.Err()
+			case <-timer.C:
+			}
+		}
+		tok = cur
+	}
+}
+
+func refreshClaimedUserToken(
+	ctx, ownerCtx context.Context,
+	logger slog.Logger,
+	store database.Store,
+	httpClient *http.Client,
+	cfg database.MCPServerConfig,
+	tok database.MCPServerUserToken,
+) (database.MCPServerUserToken, error) {
+	// The provider call and the save outlive a canceled caller: the
+	// provider may have spent the refresh token, and only the saved
+	// response keeps the grant. RefreshOAuth2Token bounds the call.
+	result, err := RefreshOAuth2Token(context.WithoutCancel(ctx), httpClient, cfg, tok)
+	saveCtx, cancel := context.WithTimeout(context.WithoutCancel(ownerCtx), refreshSaveTimeout)
+	defer cancel()
+	var out database.MCPServerUserToken
+	switch {
+	case err != nil && !IsPermanentRefreshError(err):
+		logger.Warn(ctx, "failed to refresh MCP oauth2 token", slog.Error(err))
+		// End the claim now: the next call may retry at once, and callers
+		// waiting on it go on with the stored token.
+		err = store.ReleaseMCPServerUserTokenRefresh(saveCtx, database.ReleaseMCPServerUserTokenRefreshParams{
+			ID:        tok.ID,
+			UpdatedAt: tok.UpdatedAt,
+		})
+		if err != nil {
+			logger.Warn(ctx, "failed to release MCP oauth2 token refresh claim", slog.Error(err))
+		}
+		return tok, nil
+	case err != nil:
+		logger.Warn(ctx, "mcp oauth2 grant permanently unusable, marking token for reconnect", slog.Error(err))
+		out, err = store.MarkMCPServerUserTokenRefreshFailure(saveCtx, database.MarkMCPServerUserTokenRefreshFailureParams{
+			ID:                        tok.ID,
+			UpdatedAt:                 tok.UpdatedAt,
+			OauthRefreshFailureReason: RefreshFailureReason(err),
+		})
+	default:
+		// Persist every successful response, even one that repeats the
+		// access token: the refresh token or expiry may have changed, and
+		// the write ends the claim.
+		logger.Info(ctx, "refreshed MCP oauth2 token")
+		var expiry sql.NullTime
+		if !result.Expiry.IsZero() {
+			expiry = sql.NullTime{Time: result.Expiry, Valid: true}
+		}
+		out, err = store.UpdateMCPServerUserTokenFromRefresh(saveCtx, database.UpdateMCPServerUserTokenFromRefreshParams{
+			ID:                tok.ID,
+			UpdatedAt:         tok.UpdatedAt,
+			AccessToken:       result.AccessToken,
+			AccessTokenKeyID:  sql.NullString{},
+			RefreshToken:      result.RefreshToken,
+			RefreshTokenKeyID: sql.NullString{},
+			TokenType:         result.TokenType,
+			Expiry:            expiry,
+		})
+	}
+	if errors.Is(err, sql.ErrNoRows) {
+		// A re-authentication or disconnect, which does not claim the row,
+		// replaced it during the provider call and wins.
+		return currentUserToken(ctx, store, tok)
+	}
+	if err != nil {
+		return tok, xerrors.Errorf("persist MCP oauth2 token refresh: %w", err)
+	}
+	return out, nil
+}
+
+// currentUserToken re-reads the owner's token for tok's server, which a
+// reconnect may have replaced with a new row, and returns tok without
+// credentials when there is none.
+func currentUserToken(ctx context.Context, store database.Store, tok database.MCPServerUserToken) (database.MCPServerUserToken, error) {
+	row, err := store.GetMCPServerUserToken(ctx, database.GetMCPServerUserTokenParams{
+		MCPServerConfigID: tok.MCPServerConfigID,
+		UserID:            tok.UserID,
+	})
+	if errors.Is(err, sql.ErrNoRows) {
+		tok.AccessToken, tok.RefreshToken, tok.Expiry = "", "", sql.NullTime{}
+		return tok, nil
+	}
+	if err != nil {
+		return tok, xerrors.Errorf("get MCP oauth2 token: %w", err)
+	}
+	return row, nil
 }
 
 // RevokeOAuth2Token revokes the user's token at the provider's RFC 7009

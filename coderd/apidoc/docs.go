@@ -22787,13 +22787,22 @@ const docTemplate = `{
                 "enabled": {
                     "type": "boolean"
                 },
+                "event": {
+                    "description": "Event is set for mcp_event automations.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatAutomationEvent"
+                        }
+                    ]
+                },
                 "id": {
                     "type": "string",
                     "format": "uuid"
                 },
                 "kind": {
                     "enum": [
-                        "schedule"
+                        "schedule",
+                        "mcp_event"
                     ],
                     "allOf": [
                         {
@@ -22893,13 +22902,46 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.ChatAutomationEvent": {
+            "type": "object",
+            "properties": {
+                "arguments": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "delivery": {
+                    "type": "string",
+                    "enum": [
+                        "poll"
+                    ]
+                },
+                "event_name": {
+                    "type": "string"
+                },
+                "mcp_server_config_id": {
+                    "description": "MCPServerConfigID is null after the MCP server config is deleted.",
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "state": {
+                    "description": "State is terminated after the server ends the subscription. A\nterminated subscription receives no more events.",
+                    "type": "string",
+                    "enum": [
+                        "active",
+                        "terminated"
+                    ]
+                }
+            }
+        },
         "codersdk.ChatAutomationKind": {
             "type": "string",
             "enum": [
-                "schedule"
+                "schedule",
+                "mcp_event"
             ],
             "x-enum-varnames": [
-                "ChatAutomationKindSchedule"
+                "ChatAutomationKindSchedule",
+                "ChatAutomationKindMCPEvent"
             ]
         },
         "codersdk.ChatAutomationLastRun": {

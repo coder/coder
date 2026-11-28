@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -24,8 +25,8 @@ import (
 	"github.com/coder/quartz"
 )
 
-// ToolName is the name of the agent tool that manages the heartbeats of its
-// chat.
+// ToolName is the name of the agent tool that manages the heartbeats and
+// event subscriptions of its chat.
 const ToolName = "manage_automations"
 
 const (
@@ -33,6 +34,10 @@ const (
 	toolActionList    = "list"
 	toolActionDisable = "disable"
 	toolActionDelete  = "delete"
+	// toolActionUnsubscribe deletes, like toolActionDelete.
+	toolActionUnsubscribe    = "unsubscribe"
+	toolActionListEventTypes = "list_event_types"
+	toolActionSubscribe      = "subscribe"
 )
 
 var (
@@ -40,7 +45,7 @@ var (
 	// that the chat owner cannot read and one that targets another chat
 	// alike, so the tool never reveals another chat's automation.
 	errNotInThisChat = xerrors.New("no automation with this ID targets this chat")
-	errUnknownAction = xerrors.New("unknown action: the actions are create, list, disable and delete")
+	errUnknownAction = xerrors.New("unknown action: the actions are create, list, disable, delete, list_event_types, subscribe and unsubscribe")
 )
 
 // AuditFunc records a change that the tool committed. before is zero for a
@@ -52,19 +57,25 @@ type ToolOptions struct {
 	DB database.Store
 	// Chat holds the tool. The tool acts as its owner and reaches only the
 	// automations that target it.
-	Chat   database.Chat
-	Audit  AuditFunc
+	Chat  database.Chat
+	Audit AuditFunc
+	// Events reaches the chat's MCP servers. The event actions are
+	// unavailable without it.
+	Events EventSource
 	Logger slog.Logger
 	Clock  quartz.Clock
 }
 
 type toolArgs struct {
-	Action           string `json:"action" enum:"create,list,disable,delete" description:"The action to run."`
-	AutomationID     string `json:"automation_id,omitempty" description:"The heartbeat's ID. Required for disable and delete."`
-	Name             string `json:"name,omitempty" description:"A short name for the heartbeat. Required for create."`
-	Prompt           string `json:"prompt,omitempty" description:"The message that each run sends to this chat. Required for create."`
+	Action           string `json:"action" enum:"create,list,disable,delete,list_event_types,subscribe,unsubscribe" description:"The action to run."`
+	AutomationID     string `json:"automation_id,omitempty" description:"The automation's ID. Required for disable, delete and unsubscribe."`
+	Name             string `json:"name,omitempty" description:"A short name for the automation. Required for create and subscribe."`
+	Prompt           string `json:"prompt,omitempty" description:"The message that each run sends to this chat. Required for create and subscribe."`
 	ScheduleCron     string `json:"schedule_cron,omitempty" description:"A five-field cron expression (minute, hour, day of month, month, day of week). Runs at most every 5 minutes. Required for create."`
 	ScheduleTimeZone string `json:"schedule_time_zone,omitempty" description:"The IANA time zone of schedule_cron, such as UTC or Europe/Berlin. Required for create."`
+	MCPServer        string `json:"mcp_server,omitempty" description:"The slug of one of this chat's MCP servers. Required for subscribe. list_event_types lists every server without it."`
+	Event            string `json:"event,omitempty" description:"An event name from list_event_types. Required for subscribe."`
+	Arguments        any    `json:"arguments,omitempty" description:"The event's arguments: a JSON object that matches its input_schema."`
 }
 
 // toolAutomation is an automation in a tool result.
@@ -73,9 +84,10 @@ type toolAutomation struct {
 	Name             string                          `json:"name"`
 	Enabled          bool                            `json:"enabled"`
 	Prompt           string                          `json:"prompt"`
-	ScheduleCron     string                          `json:"schedule_cron"`
-	ScheduleTimeZone string                          `json:"schedule_time_zone"`
-	NextRunTimes     []time.Time                     `json:"next_run_times"`
+	ScheduleCron     string                          `json:"schedule_cron,omitempty"`
+	ScheduleTimeZone string                          `json:"schedule_time_zone,omitempty"`
+	NextRunTimes     []time.Time                     `json:"next_run_times,omitempty"`
+	Event            *codersdk.ChatAutomationEvent   `json:"event,omitempty"`
 	LastRun          *codersdk.ChatAutomationLastRun `json:"last_run,omitempty"`
 }
 
@@ -85,9 +97,11 @@ type toolAutomation struct {
 func Tool(options ToolOptions) fantasy.AgentTool {
 	return fantasy.NewAgentTool(
 		ToolName,
-		"Manage the heartbeats of this chat. A heartbeat sends a saved prompt to this chat on a schedule, as the chat owner, "+
-			"and is skipped while the chat is busy. Each run's message names the heartbeat's ID. "+
-			"create starts a heartbeat. list shows the heartbeats of this chat. disable stops one and delete removes one, by automation_id.",
+		"Manage the automations of this chat. A heartbeat sends a saved prompt to this chat on a schedule and is skipped while the chat is busy. "+
+			"An event subscription sends the saved prompt with the events that an MCP server reports; events wait while the chat is busy. "+
+			"Both run as the chat owner, and each run's message names the automation's ID. "+
+			"create starts a heartbeat. list_event_types lists the events of this chat's MCP servers, and subscribe subscribes to one. "+
+			"list shows the automations of this chat. disable stops one, and delete or unsubscribe removes one, by automation_id.",
 		func(ctx context.Context, args toolArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 			result, err := runTool(ctx, options, args)
 			if err != nil {
@@ -95,11 +109,11 @@ func Tool(options ToolOptions) fantasy.AgentTool {
 					return fantasy.NewTextErrorResponse(text), nil
 				}
 				options.Logger.Error(ctx, "manage_automations failed", slog.F("action", args.Action), slog.F("chat_id", options.Chat.ID), slog.Error(err))
-				return fantasy.NewTextErrorResponse("The heartbeats are unavailable. Try again later."), nil
+				return fantasy.NewTextErrorResponse("The automations are unavailable. Try again later."), nil
 			}
 			data, err := json.Marshal(result)
 			if err != nil {
-				return fantasy.NewTextErrorResponse("The heartbeats are unavailable. Try again later."), nil
+				return fantasy.NewTextErrorResponse("The automations are unavailable. Try again later."), nil
 			}
 			return fantasy.NewTextResponse(string(data)), nil
 		},
@@ -117,9 +131,13 @@ func runTool(ctx context.Context, options ToolOptions, args toolArgs) (any, erro
 	case toolActionCreate:
 		return createHeartbeat(ctx, options, args, now)
 	case toolActionList:
-		return listHeartbeats(ctx, options, now)
+		return listAutomations(ctx, options, now)
+	case toolActionListEventTypes:
+		return listEventTypes(ctx, options, args.MCPServer)
+	case toolActionSubscribe:
+		return subscribe(ctx, options, args, now)
 	case toolActionDisable:
-		automation, err := heartbeatOfChat(ctx, options, args.AutomationID)
+		automation, err := automationOfChat(ctx, options, args.AutomationID)
 		if err != nil {
 			return nil, err
 		}
@@ -130,9 +148,13 @@ func runTool(ctx context.Context, options ToolOptions, args toolArgs) (any, erro
 		if before.Enabled {
 			options.Audit(ctx, database.AuditActionWrite, before, after)
 		}
-		return toToolAutomation(after, now), nil
-	case toolActionDelete:
-		automation, err := heartbeatOfChat(ctx, options, args.AutomationID)
+		refs, err := subscriptionRefs(ctx, options, []uuid.UUID{after.ID})
+		if err != nil {
+			return nil, err
+		}
+		return toToolAutomation(after, refs, now), nil
+	case toolActionDelete, toolActionUnsubscribe:
+		automation, err := automationOfChat(ctx, options, args.AutomationID)
 		if err != nil {
 			return nil, err
 		}
@@ -162,12 +184,12 @@ func createHeartbeat(ctx context.Context, options ToolOptions, args toolArgs, no
 		return toolAutomation{}, err
 	}
 	options.Audit(ctx, database.AuditActionCreate, database.ChatAutomation{}, created)
-	return toToolAutomation(created, now), nil
+	return toToolAutomation(created, db2sdk.ChatAutomationRefs{}, now), nil
 }
 
-// listHeartbeats lists the chat owner's automations that target the tool's
+// listAutomations lists the chat owner's automations that target the tool's
 // chat. An owner has at most MaxAutomationsPerOwner, so the filter runs here.
-func listHeartbeats(ctx context.Context, options ToolOptions, now time.Time) (map[string][]toolAutomation, error) {
+func listAutomations(ctx context.Context, options ToolOptions, now time.Time) (map[string][]toolAutomation, error) {
 	rows, err := options.DB.GetChatAutomationsByOrganizationID(ctx, database.GetChatAutomationsByOrganizationIDParams{
 		OrganizationID: options.Chat.OrganizationID,
 		OwnerID:        options.Chat.OwnerID,
@@ -175,20 +197,51 @@ func listHeartbeats(ctx context.Context, options ToolOptions, now time.Time) (ma
 	if err != nil {
 		return nil, xerrors.Errorf("list chat automations: %w", err)
 	}
-	heartbeats := []toolAutomation{}
+	var ofChat, events []uuid.UUID
 	for _, row := range rows {
 		if row.TargetChatID == (uuid.NullUUID{UUID: options.Chat.ID, Valid: true}) {
-			heartbeats = append(heartbeats, toToolAutomation(row, now))
+			ofChat = append(ofChat, row.ID)
+			if row.Kind == database.ChatAutomationKindMcpEvent {
+				events = append(events, row.ID)
+			}
 		}
 	}
-	return map[string][]toolAutomation{"heartbeats": heartbeats}, nil
+	refs, err := subscriptionRefs(ctx, options, events)
+	if err != nil {
+		return nil, err
+	}
+	automations := []toolAutomation{}
+	for _, row := range rows {
+		if slices.Contains(ofChat, row.ID) {
+			automations = append(automations, toToolAutomation(row, refs, now))
+		}
+	}
+	return map[string][]toolAutomation{"automations": automations}, nil
 }
 
-// heartbeatOfChat reads an automation as the chat owner and returns it only
+// subscriptionRefs reads the MCP event subscriptions of automations that the
+// chat owner already read.
+func subscriptionRefs(ctx context.Context, options ToolOptions, ids []uuid.UUID) (db2sdk.ChatAutomationRefs, error) {
+	refs := db2sdk.ChatAutomationRefs{Subscriptions: map[uuid.UUID]database.ChatAutomationMCPSubscription{}}
+	if len(ids) == 0 {
+		return refs, nil
+	}
+	//nolint:gocritic // The chat owner read these automations.
+	subs, err := options.DB.GetChatAutomationMCPSubscriptionsByAutomationIDs(dbauthz.AsSystemRestricted(ctx), ids)
+	if err != nil {
+		return refs, xerrors.Errorf("get subscriptions: %w", err)
+	}
+	for _, sub := range subs {
+		refs.Subscriptions[sub.AutomationID] = sub
+	}
+	return refs, nil
+}
+
+// automationOfChat reads an automation as the chat owner and returns it only
 // when it targets the tool's chat. Disable and delete read it again under the
 // automation lock; only a chat delete can change the target, and only to
 // NULL.
-func heartbeatOfChat(ctx context.Context, options ToolOptions, rawID string) (database.ChatAutomation, error) {
+func automationOfChat(ctx context.Context, options ToolOptions, rawID string) (database.ChatAutomation, error) {
 	id, err := uuid.Parse(rawID)
 	if err != nil {
 		return database.ChatAutomation{}, errNotInThisChat
@@ -207,7 +260,7 @@ func heartbeatOfChat(ctx context.Context, options ToolOptions, rawID string) (da
 }
 
 // notInThisChatIfGone maps the error of an automation that someone deleted
-// after heartbeatOfChat read it to the refusal that a missing ID gets.
+// after automationOfChat read it to the refusal that a missing ID gets.
 func notInThisChatIfGone(err error) error {
 	if httpapi.Is404Error(err) {
 		return errNotInThisChat
@@ -215,8 +268,8 @@ func notInThisChatIfGone(err error) error {
 	return err
 }
 
-func toToolAutomation(a database.ChatAutomation, now time.Time) toolAutomation {
-	sdk := db2sdk.ChatAutomation(a, db2sdk.ChatAutomationRefs{}, now)
+func toToolAutomation(a database.ChatAutomation, refs db2sdk.ChatAutomationRefs, now time.Time) toolAutomation {
+	sdk := db2sdk.ChatAutomation(a, refs, now)
 	return toolAutomation{
 		ID:               a.ID,
 		Name:             a.Name,
@@ -225,6 +278,7 @@ func toToolAutomation(a database.ChatAutomation, now time.Time) toolAutomation {
 		ScheduleCron:     a.ScheduleCron.String,
 		ScheduleTimeZone: a.ScheduleTimeZone.String,
 		NextRunTimes:     sdk.NextRunTimes,
+		Event:            sdk.Event,
 		LastRun:          sdk.LastRun,
 	}
 }
@@ -234,14 +288,17 @@ func toToolAutomation(a database.ChatAutomation, now time.Time) toolAutomation {
 func toolErrorText(err error) (string, bool) {
 	var invalid *InvalidRequestError
 	switch {
-	case errors.Is(err, errUnknownAction), errors.Is(err, errNotInThisChat):
+	case errors.Is(err, errUnknownAction), errors.Is(err, errNotInThisChat),
+		errors.Is(err, errNoEvents), errors.Is(err, errUnknownMCPServer), errors.Is(err, errUnknownEvent):
 		return err.Error(), true
+	case errors.Is(err, ErrMCPAuthRequired):
+		return "The chat owner must connect to this MCP server first.", true
 	case errors.As(err, &invalid):
 		details := make([]string, len(invalid.Validations))
 		for i, v := range invalid.Validations {
 			details[i] = v.Field + ": " + v.Detail
 		}
-		return "The heartbeat is invalid. " + strings.Join(details, " "), true
+		return "The automation is invalid. " + strings.Join(details, " "), true
 	case errors.Is(err, ErrLimitReached):
 		return fmt.Sprintf("The chat owner has %d automations, the most allowed. Delete one to create another.", MaxAutomationsPerOwner), true
 	case errors.Is(err, ErrCreateForbidden), errors.Is(err, ErrTargetChatForbidden),

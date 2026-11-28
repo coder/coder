@@ -315,6 +315,7 @@ sql:
           mcp_server_tool_snapshots: MCPServerToolSnapshots
           mcp_server_config_id: MCPServerConfigID
           mcp_server_ids: MCPServerIDs
+          chat_automation_mcp_subscription: ChatAutomationMCPSubscription
           disabled_skill_ids: DisabledSkillIDs
           max_file_links: MaxFileLinks
           icon_url: IconURL

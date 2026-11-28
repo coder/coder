@@ -20572,12 +20572,20 @@
 				"enabled": {
 					"type": "boolean"
 				},
+				"event": {
+					"description": "Event is set for mcp_event automations.",
+					"allOf": [
+						{
+							"$ref": "#/definitions/codersdk.ChatAutomationEvent"
+						}
+					]
+				},
 				"id": {
 					"type": "string",
 					"format": "uuid"
 				},
 				"kind": {
-					"enum": ["schedule"],
+					"enum": ["schedule", "mcp_event"],
 					"allOf": [
 						{
 							"$ref": "#/definitions/codersdk.ChatAutomationKind"
@@ -20673,10 +20681,39 @@
 				}
 			}
 		},
+		"codersdk.ChatAutomationEvent": {
+			"type": "object",
+			"properties": {
+				"arguments": {
+					"type": "object",
+					"additionalProperties": {}
+				},
+				"delivery": {
+					"type": "string",
+					"enum": ["poll"]
+				},
+				"event_name": {
+					"type": "string"
+				},
+				"mcp_server_config_id": {
+					"description": "MCPServerConfigID is null after the MCP server config is deleted.",
+					"type": "string",
+					"format": "uuid"
+				},
+				"state": {
+					"description": "State is terminated after the server ends the subscription. A\nterminated subscription receives no more events.",
+					"type": "string",
+					"enum": ["active", "terminated"]
+				}
+			}
+		},
 		"codersdk.ChatAutomationKind": {
 			"type": "string",
-			"enum": ["schedule"],
-			"x-enum-varnames": ["ChatAutomationKindSchedule"]
+			"enum": ["schedule", "mcp_event"],
+			"x-enum-varnames": [
+				"ChatAutomationKindSchedule",
+				"ChatAutomationKindMCPEvent"
+			]
 		},
 		"codersdk.ChatAutomationLastRun": {
 			"type": "object",

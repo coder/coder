@@ -1,6 +1,7 @@
 package db2sdk
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
@@ -20,6 +21,8 @@ type ChatAutomationRefs struct {
 	Owners map[uuid.UUID]database.User
 	// Chats holds only the chats that the caller can read.
 	Chats map[uuid.UUID]database.Chat
+	// Subscriptions holds the MCP event subscriptions by automation ID.
+	Subscriptions map[uuid.UUID]database.ChatAutomationMCPSubscription
 }
 
 // ChatAutomation converts a row to its API shape. now anchors NextRunTimes.
@@ -50,6 +53,17 @@ func ChatAutomation(a database.ChatAutomation, refs ChatAutomationRefs, now time
 	}
 	if a.ScheduleTimeZone.Valid {
 		out.ScheduleTimeZone = ptr.Ref(a.ScheduleTimeZone.String)
+	}
+	if sub, ok := refs.Subscriptions[a.ID]; ok {
+		out.Event = &codersdk.ChatAutomationEvent{
+			MCPServerConfigID: nullUUIDPtr(sub.MCPServerConfigID),
+			EventName:         sub.EventName,
+			Delivery:          string(sub.Delivery),
+			State:             string(sub.State),
+		}
+		if err := json.Unmarshal(sub.Arguments, &out.Event.Arguments); err != nil {
+			out.Event.Arguments = map[string]any{}
+		}
 	}
 	if a.LastRunAt.Valid && a.LastRunOutcome.Valid {
 		out.LastRun = &codersdk.ChatAutomationLastRun{

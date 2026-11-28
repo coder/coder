@@ -1624,144 +1624,26 @@ func (api *API) mcpServerOAuth2Disconnect(rw http.ResponseWriter, r *http.Reques
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
 
-// refreshMCPUserToken attempts to refresh an expired OAuth2 token
-// for the given MCP server config. Returns true when the token is
-// valid (either still fresh or successfully refreshed), false when
-// the token is expired and cannot be refreshed. Permanent refresh
-// failures (e.g. revoked grants) are persisted so subsequent calls
-// skip the provider without a network call.
+// refreshMCPUserToken refreshes an expired OAuth2 token for the given
+// MCP server config and reports whether the resulting token is usable.
+// Permanent refresh failures (e.g. revoked grants) are persisted so
+// subsequent calls skip the provider without a network call.
 func (api *API) refreshMCPUserToken(
 	ctx context.Context,
 	cfg database.MCPServerConfig,
 	tok database.MCPServerUserToken,
 ) bool {
-	if cfg.AuthType != "oauth2" {
-		return true
-	}
-	if tok.OauthRefreshFailureReason != "" {
-		return false
-	}
-	if tok.RefreshToken == "" {
-		// No refresh token; connected only if not expired (or no
-		// expiry set).
-		return !tok.Expiry.Valid || tok.Expiry.Time.After(time.Now())
-	}
-
-	result, err := mcpclient.RefreshOAuth2Token(ctx, api.mcpHTTPClient, cfg, tok)
+	tok, err := mcpclient.RefreshUserToken(ctx, api.Logger, api.Clock, api.Database, api.mcpHTTPClient, cfg, tok)
 	if err != nil {
 		api.Logger.Warn(ctx, "failed to refresh MCP oauth2 token",
 			slog.F("server_slug", cfg.Slug),
 			slog.Error(err),
 		)
-		if mcpclient.IsPermanentRefreshError(err) {
-			return api.markMCPTokenRefreshFailure(ctx, cfg, tok, err)
-		}
-		// Transient failure; the token is unusable right now but a
-		// later refresh may succeed.
 		return false
 	}
-
-	if result.Refreshed {
-		var expiry sql.NullTime
-		if !result.Expiry.IsZero() {
-			expiry = sql.NullTime{Time: result.Expiry, Valid: true}
-		}
-
-		// The caller can read the token, but a read-only key cannot persist refresh
-		// results. System access permits storing rotated credentials after a
-		// successful refresh.
-		//nolint:gocritic // Token refresh persistence follows an authorized read of the same token.
-		persistCtx := dbauthz.AsSystemRestricted(ctx)
-		_, err = api.Database.UpdateMCPServerUserTokenFromRefresh(
-			persistCtx,
-			database.UpdateMCPServerUserTokenFromRefreshParams{
-				ID:                tok.ID,
-				UpdatedAt:         tok.UpdatedAt,
-				AccessToken:       result.AccessToken,
-				AccessTokenKeyID:  sql.NullString{},
-				RefreshToken:      result.RefreshToken,
-				RefreshTokenKeyID: sql.NullString{},
-				TokenType:         result.TokenType,
-				Expiry:            expiry,
-			},
-		)
-		if err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				connected, readErr := api.currentMCPUserTokenConnected(ctx, tok)
-				if readErr == nil {
-					return connected
-				}
-				err = readErr
-			}
-			api.Logger.Warn(ctx, "failed to persist refreshed MCP oauth2 token",
-				slog.F("server_slug", cfg.Slug),
-				slog.Error(err),
-			)
-		}
-	}
-
-	return true
-}
-
-func (api *API) currentMCPUserTokenConnected(
-	ctx context.Context,
-	tok database.MCPServerUserToken,
-) (bool, error) {
-	//nolint:gocritic // Refresh reconciliation follows an authorized read of the same token.
-	current, err := api.Database.GetMCPServerUserToken(
-		dbauthz.AsSystemRestricted(ctx),
-		database.GetMCPServerUserTokenParams{
-			MCPServerConfigID: tok.MCPServerConfigID,
-			UserID:            tok.UserID,
-		},
-	)
-	if errors.Is(err, sql.ErrNoRows) {
-		return false, nil
-	}
-	if err != nil {
-		return false, err
-	}
-	return current.OauthRefreshFailureReason == "" &&
-		current.AccessToken != "" &&
-		(!current.Expiry.Valid || current.Expiry.Time.After(time.Now())), nil
-}
-
-// markMCPTokenRefreshFailure persists a permanent refresh failure so
-// later status checks skip the provider. The updated_at optimistic
-// lock loses to concurrent refreshes: in that case the winner's row
-// determines whether the token is still usable.
-func (api *API) markMCPTokenRefreshFailure(
-	ctx context.Context,
-	cfg database.MCPServerConfig,
-	tok database.MCPServerUserToken,
-	refreshErr error,
-) bool {
-	//nolint:gocritic // Refresh failure recording follows an authorized read of the same token.
-	_, err := api.Database.MarkMCPServerUserTokenRefreshFailure(
-		dbauthz.AsSystemRestricted(ctx),
-		database.MarkMCPServerUserTokenRefreshFailureParams{
-			ID:                        tok.ID,
-			UpdatedAt:                 tok.UpdatedAt,
-			OauthRefreshFailureReason: mcpclient.RefreshFailureReason(refreshErr),
-		},
-	)
-	if err == nil {
-		return false
-	}
-
-	if xerrors.Is(err, sql.ErrNoRows) {
-		connected, readErr := api.currentMCPUserTokenConnected(ctx, tok)
-		if readErr == nil {
-			return connected
-		}
-		err = readErr
-	}
-
-	api.Logger.Warn(ctx, "failed to persist MCP oauth2 refresh failure",
-		slog.F("server_slug", cfg.Slug),
-		slog.Error(err),
-	)
-	return false
+	return tok.OauthRefreshFailureReason == "" &&
+		tok.AccessToken != "" &&
+		(!tok.Expiry.Valid || tok.Expiry.Time.After(time.Now()))
 }
 
 // mcpServerOAuth2CallbackPath returns the OAuth2 callback path for a

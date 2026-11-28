@@ -3041,6 +3041,16 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   },
   "created_by_chat_id": "3dc4e58f-14e6-4902-8349-f9b3287f98a9",
   "enabled": true,
+  "event": {
+    "arguments": {
+      "property1": null,
+      "property2": null
+    },
+    "delivery": "poll",
+    "event_name": "string",
+    "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
+    "state": "active"
+  },
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "kind": "schedule",
   "last_run": {
@@ -3087,6 +3097,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `created_by_chat`          | [codersdk.ChatAutomationChat](#codersdkchatautomationchat)             | false    |              |                                                                       |
 | `created_by_chat_id`       | string                                                                 | false    |              |                                                                       |
 | `enabled`                  | boolean                                                                | false    |              |                                                                       |
+| `event`                    | [codersdk.ChatAutomationEvent](#codersdkchatautomationevent)           | false    |              | Event is set for mcp_event automations.                               |
 | `id`                       | string                                                                 | false    |              |                                                                       |
 | `kind`                     | [codersdk.ChatAutomationKind](#codersdkchatautomationkind)             | false    |              |                                                                       |
 | `last_run`                 | [codersdk.ChatAutomationLastRun](#codersdkchatautomationlastrun)       | false    |              | Last run is null until the first run.                                 |
@@ -3110,7 +3121,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 | Property      | Value(s)                    |
 |---------------|-----------------------------|
-| `kind`        | `schedule`                  |
+| `kind`        | `mcp_event`, `schedule`     |
 | `target_mode` | `existing_chat`, `new_chat` |
 
 ## codersdk.ChatAutomationChat
@@ -3131,6 +3142,39 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `id`       | string  | false    |              |             |
 | `title`    | string  | false    |              |             |
 
+## codersdk.ChatAutomationEvent
+
+```json
+{
+  "arguments": {
+    "property1": null,
+    "property2": null
+  },
+  "delivery": "poll",
+  "event_name": "string",
+  "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
+  "state": "active"
+}
+```
+
+### Properties
+
+| Name                   | Type   | Required | Restrictions | Description                                                                                                    |
+|------------------------|--------|----------|--------------|----------------------------------------------------------------------------------------------------------------|
+| `arguments`            | object | false    |              |                                                                                                                |
+| » `[any property]`     | any    | false    |              |                                                                                                                |
+| `delivery`             | string | false    |              |                                                                                                                |
+| `event_name`           | string | false    |              |                                                                                                                |
+| `mcp_server_config_id` | string | false    |              | Mcp server config ID is null after the MCP server config is deleted.                                           |
+| `state`                | string | false    |              | State is terminated after the server ends the subscription. A terminated subscription receives no more events. |
+
+#### Enumerated Values
+
+| Property   | Value(s)               |
+|------------|------------------------|
+| `delivery` | `poll`                 |
+| `state`    | `active`, `terminated` |
+
 ## codersdk.ChatAutomationKind
 
 ```json
@@ -3141,9 +3185,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value(s)   |
-|------------|
-| `schedule` |
+| Value(s)                |
+|-------------------------|
+| `mcp_event`, `schedule` |
 
 ## codersdk.ChatAutomationLastRun
 

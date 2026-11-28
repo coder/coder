@@ -6199,6 +6199,487 @@ func (q *sqlQuerier) UpsertBoundaryUsageStats(ctx context.Context, arg UpsertBou
 	return new_period, err
 }
 
+const claimChatAutomationInboxDrains = `-- name: ClaimChatAutomationInboxDrains :many
+WITH due AS (
+    SELECT s.automation_id
+    FROM chat_automation_mcp_subscriptions s
+    JOIN chat_automations a ON a.id = s.automation_id
+    WHERE
+        s.drain_after <= $2::timestamptz
+        AND a.enabled
+        AND EXISTS (
+            SELECT 1
+            FROM chat_automation_event_inbox i
+            WHERE i.automation_id = s.automation_id AND i.delivered_at IS NULL
+        )
+    ORDER BY s.drain_after
+    LIMIT $3::int
+    FOR UPDATE OF s SKIP LOCKED
+)
+UPDATE chat_automation_mcp_subscriptions s
+SET drain_after = $1::timestamptz
+FROM due
+WHERE s.automation_id = due.automation_id
+RETURNING s.automation_id, s.mcp_server_config_id, s.event_name, s.arguments, s.delivery, s.state, s.cursor, s.next_poll_at, s.drain_after, s.last_error, s.created_at, s.updated_at
+`
+
+type ClaimChatAutomationInboxDrainsParams struct {
+	LeaseUntil time.Time `db:"lease_until" json:"lease_until"`
+	Now        time.Time `db:"now" json:"now"`
+	LimitCount int32     `db:"limit_count" json:"limit_count"`
+}
+
+// Leases subscriptions of enabled automations with undelivered inbox rows
+// whose drain_after has passed by moving drain_after to @lease_until.
+func (q *sqlQuerier) ClaimChatAutomationInboxDrains(ctx context.Context, arg ClaimChatAutomationInboxDrainsParams) ([]ChatAutomationMCPSubscription, error) {
+	rows, err := q.db.QueryContext(ctx, claimChatAutomationInboxDrains, arg.LeaseUntil, arg.Now, arg.LimitCount)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ChatAutomationMCPSubscription
+	for rows.Next() {
+		var i ChatAutomationMCPSubscription
+		if err := rows.Scan(
+			&i.AutomationID,
+			&i.MCPServerConfigID,
+			&i.EventName,
+			&i.Arguments,
+			&i.Delivery,
+			&i.State,
+			&i.Cursor,
+			&i.NextPollAt,
+			&i.DrainAfter,
+			&i.LastError,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const claimDueChatAutomationMCPPolls = `-- name: ClaimDueChatAutomationMCPPolls :many
+WITH due AS (
+    SELECT s.automation_id
+    FROM chat_automation_mcp_subscriptions s
+    JOIN chat_automations a ON a.id = s.automation_id
+    WHERE
+        s.state = 'active'
+        AND s.delivery = 'poll'
+        AND s.next_poll_at <= $2::timestamptz
+        AND a.enabled
+        AND (
+            SELECT count(*)
+            FROM (
+                SELECT 1
+                FROM chat_automation_event_inbox i
+                WHERE i.automation_id = s.automation_id AND i.delivered_at IS NULL
+                LIMIT $3::int
+            ) pending
+        ) < $3::int
+    ORDER BY s.next_poll_at
+    LIMIT $4::int
+    FOR UPDATE OF s SKIP LOCKED
+)
+UPDATE chat_automation_mcp_subscriptions s
+SET next_poll_at = $1::timestamptz
+FROM due, chat_automations a
+WHERE s.automation_id = due.automation_id AND a.id = s.automation_id
+RETURNING s.automation_id, s.mcp_server_config_id, s.event_name, s.arguments, s.delivery, s.state, s.cursor, s.next_poll_at, s.drain_after, s.last_error, s.created_at, s.updated_at, a.owner_id
+`
+
+type ClaimDueChatAutomationMCPPollsParams struct {
+	LeaseUntil time.Time `db:"lease_until" json:"lease_until"`
+	Now        time.Time `db:"now" json:"now"`
+	MaxPending int32     `db:"max_pending" json:"max_pending"`
+	LimitCount int32     `db:"limit_count" json:"limit_count"`
+}
+
+type ClaimDueChatAutomationMCPPollsRow struct {
+	AutomationID      uuid.UUID                       `db:"automation_id" json:"automation_id"`
+	MCPServerConfigID uuid.NullUUID                   `db:"mcp_server_config_id" json:"mcp_server_config_id"`
+	EventName         string                          `db:"event_name" json:"event_name"`
+	Arguments         json.RawMessage                 `db:"arguments" json:"arguments"`
+	Delivery          ChatAutomationEventDelivery     `db:"delivery" json:"delivery"`
+	State             ChatAutomationSubscriptionState `db:"state" json:"state"`
+	Cursor            sql.NullString                  `db:"cursor" json:"cursor"`
+	NextPollAt        sql.NullTime                    `db:"next_poll_at" json:"next_poll_at"`
+	DrainAfter        time.Time                       `db:"drain_after" json:"drain_after"`
+	LastError         sql.NullString                  `db:"last_error" json:"last_error"`
+	CreatedAt         time.Time                       `db:"created_at" json:"created_at"`
+	UpdatedAt         time.Time                       `db:"updated_at" json:"updated_at"`
+	OwnerID           uuid.UUID                       `db:"owner_id" json:"owner_id"`
+}
+
+// Leases due active poll subscriptions of enabled automations with fewer
+// than @max_pending undelivered inbox rows by moving next_poll_at to
+// @lease_until. SKIP LOCKED lets every replica claim a different set.
+func (q *sqlQuerier) ClaimDueChatAutomationMCPPolls(ctx context.Context, arg ClaimDueChatAutomationMCPPollsParams) ([]ClaimDueChatAutomationMCPPollsRow, error) {
+	rows, err := q.db.QueryContext(ctx, claimDueChatAutomationMCPPolls,
+		arg.LeaseUntil,
+		arg.Now,
+		arg.MaxPending,
+		arg.LimitCount,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ClaimDueChatAutomationMCPPollsRow
+	for rows.Next() {
+		var i ClaimDueChatAutomationMCPPollsRow
+		if err := rows.Scan(
+			&i.AutomationID,
+			&i.MCPServerConfigID,
+			&i.EventName,
+			&i.Arguments,
+			&i.Delivery,
+			&i.State,
+			&i.Cursor,
+			&i.NextPollAt,
+			&i.DrainAfter,
+			&i.LastError,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.OwnerID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const deleteOldChatAutomationInboxRows = `-- name: DeleteOldChatAutomationInboxRows :execrows
+DELETE FROM chat_automation_event_inbox
+WHERE id IN (
+    SELECT id
+    FROM chat_automation_event_inbox
+    WHERE delivered_at < $1::timestamptz
+    ORDER BY id
+    LIMIT $2::int
+)
+`
+
+type DeleteOldChatAutomationInboxRowsParams struct {
+	BeforeTime time.Time `db:"before_time" json:"before_time"`
+	LimitCount int32     `db:"limit_count" json:"limit_count"`
+}
+
+// Delivered rows are kept for a while so that a late retry of an event
+// still deduplicates.
+func (q *sqlQuerier) DeleteOldChatAutomationInboxRows(ctx context.Context, arg DeleteOldChatAutomationInboxRowsParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteOldChatAutomationInboxRows, arg.BeforeTime, arg.LimitCount)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const getChatAutomationMCPSubscriptionsByAutomationIDs = `-- name: GetChatAutomationMCPSubscriptionsByAutomationIDs :many
+SELECT automation_id, mcp_server_config_id, event_name, arguments, delivery, state, cursor, next_poll_at, drain_after, last_error, created_at, updated_at
+FROM chat_automation_mcp_subscriptions
+WHERE automation_id = ANY($1::uuid[])
+`
+
+func (q *sqlQuerier) GetChatAutomationMCPSubscriptionsByAutomationIDs(ctx context.Context, automationIds []uuid.UUID) ([]ChatAutomationMCPSubscription, error) {
+	rows, err := q.db.QueryContext(ctx, getChatAutomationMCPSubscriptionsByAutomationIDs, pq.Array(automationIds))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ChatAutomationMCPSubscription
+	for rows.Next() {
+		var i ChatAutomationMCPSubscription
+		if err := rows.Scan(
+			&i.AutomationID,
+			&i.MCPServerConfigID,
+			&i.EventName,
+			&i.Arguments,
+			&i.Delivery,
+			&i.State,
+			&i.Cursor,
+			&i.NextPollAt,
+			&i.DrainAfter,
+			&i.LastError,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getPendingChatAutomationInboxRows = `-- name: GetPendingChatAutomationInboxRows :many
+SELECT id, automation_id, kind, event_id, event_name, occurred_at, data, detail, received_at, delivered_at
+FROM chat_automation_event_inbox
+WHERE automation_id = $1::uuid AND delivered_at IS NULL
+ORDER BY id
+LIMIT $2::int
+`
+
+type GetPendingChatAutomationInboxRowsParams struct {
+	AutomationID uuid.UUID `db:"automation_id" json:"automation_id"`
+	LimitCount   int32     `db:"limit_count" json:"limit_count"`
+}
+
+func (q *sqlQuerier) GetPendingChatAutomationInboxRows(ctx context.Context, arg GetPendingChatAutomationInboxRowsParams) ([]ChatAutomationEventInbox, error) {
+	rows, err := q.db.QueryContext(ctx, getPendingChatAutomationInboxRows, arg.AutomationID, arg.LimitCount)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ChatAutomationEventInbox
+	for rows.Next() {
+		var i ChatAutomationEventInbox
+		if err := rows.Scan(
+			&i.ID,
+			&i.AutomationID,
+			&i.Kind,
+			&i.EventID,
+			&i.EventName,
+			&i.OccurredAt,
+			&i.Data,
+			&i.Detail,
+			&i.ReceivedAt,
+			&i.DeliveredAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const insertChatAutomationInboxEvents = `-- name: InsertChatAutomationInboxEvents :execrows
+INSERT INTO chat_automation_event_inbox (automation_id, kind, event_id, event_name, occurred_at, data)
+SELECT
+    $1::uuid,
+    'event',
+    e.value->>'eventId',
+    e.value->>'name',
+    (e.value->>'timestamp')::timestamptz,
+    COALESCE(NULLIF(e.value->'data', 'null'::jsonb), '{}'::jsonb)
+FROM jsonb_array_elements($2::jsonb) WITH ORDINALITY AS e(value, ord)
+ORDER BY e.ord
+ON CONFLICT (automation_id, event_id) WHERE event_id IS NOT NULL DO NOTHING
+`
+
+type InsertChatAutomationInboxEventsParams struct {
+	AutomationID uuid.UUID       `db:"automation_id" json:"automation_id"`
+	Events       json.RawMessage `db:"events" json:"events"`
+}
+
+// Appends @events, a JSON array of MCP event occurrences, in their order. An
+// eventId that the subscription already received inserts nothing.
+func (q *sqlQuerier) InsertChatAutomationInboxEvents(ctx context.Context, arg InsertChatAutomationInboxEventsParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, insertChatAutomationInboxEvents, arg.AutomationID, arg.Events)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const insertChatAutomationInboxNotice = `-- name: InsertChatAutomationInboxNotice :exec
+INSERT INTO chat_automation_event_inbox (automation_id, kind, detail)
+VALUES ($1::uuid, $2::chat_automation_inbox_kind, $3::text)
+`
+
+type InsertChatAutomationInboxNoticeParams struct {
+	AutomationID uuid.UUID               `db:"automation_id" json:"automation_id"`
+	Kind         ChatAutomationInboxKind `db:"kind" json:"kind"`
+	Detail       string                  `db:"detail" json:"detail"`
+}
+
+func (q *sqlQuerier) InsertChatAutomationInboxNotice(ctx context.Context, arg InsertChatAutomationInboxNoticeParams) error {
+	_, err := q.db.ExecContext(ctx, insertChatAutomationInboxNotice, arg.AutomationID, arg.Kind, arg.Detail)
+	return err
+}
+
+const insertChatAutomationMCPSubscription = `-- name: InsertChatAutomationMCPSubscription :one
+INSERT INTO chat_automation_mcp_subscriptions (automation_id, mcp_server_config_id, event_name, arguments, delivery, cursor, next_poll_at)
+VALUES (
+    $1::uuid, $2::uuid, $3::text, $4::jsonb,
+    $5::chat_automation_event_delivery, $6::text, $7::timestamptz
+)
+RETURNING automation_id, mcp_server_config_id, event_name, arguments, delivery, state, cursor, next_poll_at, drain_after, last_error, created_at, updated_at
+`
+
+type InsertChatAutomationMCPSubscriptionParams struct {
+	AutomationID      uuid.UUID                   `db:"automation_id" json:"automation_id"`
+	MCPServerConfigID uuid.UUID                   `db:"mcp_server_config_id" json:"mcp_server_config_id"`
+	EventName         string                      `db:"event_name" json:"event_name"`
+	Arguments         json.RawMessage             `db:"arguments" json:"arguments"`
+	Delivery          ChatAutomationEventDelivery `db:"delivery" json:"delivery"`
+	Cursor            sql.NullString              `db:"cursor" json:"cursor"`
+	NextPollAt        sql.NullTime                `db:"next_poll_at" json:"next_poll_at"`
+}
+
+func (q *sqlQuerier) InsertChatAutomationMCPSubscription(ctx context.Context, arg InsertChatAutomationMCPSubscriptionParams) (ChatAutomationMCPSubscription, error) {
+	row := q.db.QueryRowContext(ctx, insertChatAutomationMCPSubscription,
+		arg.AutomationID,
+		arg.MCPServerConfigID,
+		arg.EventName,
+		arg.Arguments,
+		arg.Delivery,
+		arg.Cursor,
+		arg.NextPollAt,
+	)
+	var i ChatAutomationMCPSubscription
+	err := row.Scan(
+		&i.AutomationID,
+		&i.MCPServerConfigID,
+		&i.EventName,
+		&i.Arguments,
+		&i.Delivery,
+		&i.State,
+		&i.Cursor,
+		&i.NextPollAt,
+		&i.DrainAfter,
+		&i.LastError,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const markChatAutomationInboxDelivered = `-- name: MarkChatAutomationInboxDelivered :execrows
+UPDATE chat_automation_event_inbox
+SET delivered_at = $1::timestamptz
+WHERE automation_id = $2::uuid AND id = ANY($3::bigint[]) AND delivered_at IS NULL
+`
+
+type MarkChatAutomationInboxDeliveredParams struct {
+	DeliveredAt  time.Time `db:"delivered_at" json:"delivered_at"`
+	AutomationID uuid.UUID `db:"automation_id" json:"automation_id"`
+	IDs          []int64   `db:"ids" json:"ids"`
+}
+
+func (q *sqlQuerier) MarkChatAutomationInboxDelivered(ctx context.Context, arg MarkChatAutomationInboxDeliveredParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, markChatAutomationInboxDelivered, arg.DeliveredAt, arg.AutomationID, pq.Array(arg.IDs))
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const setChatAutomationMCPDrainAfter = `-- name: SetChatAutomationMCPDrainAfter :exec
+UPDATE chat_automation_mcp_subscriptions
+SET drain_after = $1::timestamptz
+WHERE automation_id = $2::uuid
+`
+
+type SetChatAutomationMCPDrainAfterParams struct {
+	DrainAfter   time.Time `db:"drain_after" json:"drain_after"`
+	AutomationID uuid.UUID `db:"automation_id" json:"automation_id"`
+}
+
+func (q *sqlQuerier) SetChatAutomationMCPDrainAfter(ctx context.Context, arg SetChatAutomationMCPDrainAfterParams) error {
+	_, err := q.db.ExecContext(ctx, setChatAutomationMCPDrainAfter, arg.DrainAfter, arg.AutomationID)
+	return err
+}
+
+const terminateChatAutomationMCPSubscription = `-- name: TerminateChatAutomationMCPSubscription :execrows
+UPDATE chat_automation_mcp_subscriptions
+SET state = 'terminated', last_error = $1::text, updated_at = $2::timestamptz
+WHERE
+    automation_id = $3::uuid
+    AND state = 'active'
+    AND ($4::timestamptz IS NULL OR next_poll_at = $4::timestamptz)
+`
+
+type TerminateChatAutomationMCPSubscriptionParams struct {
+	Reason       string       `db:"reason" json:"reason"`
+	Now          time.Time    `db:"now" json:"now"`
+	AutomationID uuid.UUID    `db:"automation_id" json:"automation_id"`
+	LeaseUntil   sql.NullTime `db:"lease_until" json:"lease_until"`
+}
+
+// Ends an active subscription. A poll passes its lease, and ends nothing once
+// the subscription no longer holds it.
+func (q *sqlQuerier) TerminateChatAutomationMCPSubscription(ctx context.Context, arg TerminateChatAutomationMCPSubscriptionParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, terminateChatAutomationMCPSubscription,
+		arg.Reason,
+		arg.Now,
+		arg.AutomationID,
+		arg.LeaseUntil,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const updateChatAutomationMCPCursor = `-- name: UpdateChatAutomationMCPCursor :execrows
+UPDATE chat_automation_mcp_subscriptions
+SET
+    cursor = COALESCE($1::text, cursor),
+    next_poll_at = COALESCE($2::timestamptz, next_poll_at),
+    last_error = $3::text,
+    updated_at = $4::timestamptz
+WHERE
+    automation_id = $5::uuid
+    AND state = 'active'
+    AND ($6::timestamptz IS NULL OR next_poll_at = $6::timestamptz)
+`
+
+type UpdateChatAutomationMCPCursorParams struct {
+	Cursor       sql.NullString `db:"cursor" json:"cursor"`
+	NextPollAt   sql.NullTime   `db:"next_poll_at" json:"next_poll_at"`
+	LastError    sql.NullString `db:"last_error" json:"last_error"`
+	Now          time.Time      `db:"now" json:"now"`
+	AutomationID uuid.UUID      `db:"automation_id" json:"automation_id"`
+	LeaseUntil   sql.NullTime   `db:"lease_until" json:"lease_until"`
+}
+
+// Records a delivery or a failed poll of an active subscription: the cursor
+// to resume from, the next poll and the error. A NULL cursor or next poll
+// keeps the stored one; a NULL error clears it. A poll's delivery passes its
+// lease, and updates nothing once the subscription no longer holds it.
+func (q *sqlQuerier) UpdateChatAutomationMCPCursor(ctx context.Context, arg UpdateChatAutomationMCPCursorParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, updateChatAutomationMCPCursor,
+		arg.Cursor,
+		arg.NextPollAt,
+		arg.LastError,
+		arg.Now,
+		arg.AutomationID,
+		arg.LeaseUntil,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const advanceChatAutomationNextRunAt = `-- name: AdvanceChatAutomationNextRunAt :exec
 UPDATE chat_automations
 SET schedule_next_run_at = $1::timestamptz
@@ -6521,6 +7002,14 @@ func (q *sqlQuerier) InsertChatAutomation(ctx context.Context, arg InsertChatAut
 }
 
 const updateChatAutomationEnabled = `-- name: UpdateChatAutomationEnabled :one
+WITH resumed AS (
+    UPDATE chat_automation_mcp_subscriptions s
+    SET
+        cursor = NULL,
+        next_poll_at = CASE WHEN s.delivery = 'poll' THEN $3::timestamptz END
+    FROM chat_automations a
+    WHERE s.automation_id = $4::uuid AND a.id = s.automation_id AND NOT a.enabled AND $1::boolean
+)
 UPDATE chat_automations
 SET
     enabled = $1::boolean,
@@ -6543,6 +7032,9 @@ type UpdateChatAutomationEnabledParams struct {
 
 // Setting the current state keeps the schedule and updated_at, so the
 // caller still needs update permission and a run in flight is not voided.
+// Turning an automation on clears the cursor of its MCP event subscription
+// and makes its poll due, so that polls resume from now, events missed
+// meanwhile do not run, and a poll still in flight is voided.
 func (q *sqlQuerier) UpdateChatAutomationEnabled(ctx context.Context, arg UpdateChatAutomationEnabledParams) (ChatAutomation, error) {
 	row := q.db.QueryRowContext(ctx, updateChatAutomationEnabled,
 		arg.Enabled,
@@ -21231,6 +21723,38 @@ func (q *sqlQuerier) TryAcquireLock(ctx context.Context, pgTryAdvisoryXactLock i
 	return pg_try_advisory_xact_lock, err
 }
 
+const claimMCPServerUserTokenRefresh = `-- name: ClaimMCPServerUserTokenRefresh :one
+UPDATE mcp_server_user_tokens
+SET
+    updated_at = NOW() + make_interval(secs => $1::double precision)
+WHERE
+    id = $2::uuid
+    AND updated_at = $3::timestamptz
+    AND updated_at <= NOW()
+RETURNING
+    updated_at
+`
+
+type ClaimMCPServerUserTokenRefreshParams struct {
+	LeaseSeconds float64   `db:"lease_seconds" json:"lease_seconds"`
+	ID           uuid.UUID `db:"id" json:"id"`
+	UpdatedAt    time.Time `db:"updated_at" json:"updated_at"`
+}
+
+// Claims the right to refresh a token for @lease_seconds by moving
+// updated_at that far into the future. It matches only the version the
+// caller read, and never a live claim (updated_at still ahead of NOW()),
+// so concurrent refreshers of one token make one provider call without
+// holding a transaction across it. The claimant persists its result
+// against the returned updated_at; other writers set NOW(), which ends
+// the claim.
+func (q *sqlQuerier) ClaimMCPServerUserTokenRefresh(ctx context.Context, arg ClaimMCPServerUserTokenRefreshParams) (time.Time, error) {
+	row := q.db.QueryRowContext(ctx, claimMCPServerUserTokenRefresh, arg.LeaseSeconds, arg.ID, arg.UpdatedAt)
+	var updated_at time.Time
+	err := row.Scan(&updated_at)
+	return updated_at, err
+}
+
 const cleanupDeletedMCPServerIDsFromChats = `-- name: CleanupDeletedMCPServerIDsFromChats :exec
 UPDATE chats
 SET mcp_server_ids = (
@@ -22122,6 +22646,28 @@ func (q *sqlQuerier) MarkMCPServerUserTokenRefreshFailure(ctx context.Context, a
 		&i.OauthRefreshFailureReason,
 	)
 	return i, err
+}
+
+const releaseMCPServerUserTokenRefresh = `-- name: ReleaseMCPServerUserTokenRefresh :exec
+UPDATE mcp_server_user_tokens
+SET
+    updated_at = NOW()
+WHERE
+    id = $1::uuid
+    AND updated_at = $2::timestamptz
+`
+
+type ReleaseMCPServerUserTokenRefreshParams struct {
+	ID        uuid.UUID `db:"id" json:"id"`
+	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
+}
+
+// Ends a refresh claim that got no token, so the next refresher can claim
+// at once. It matches only the claim's updated_at, so a write that ended
+// the claim first keeps its version.
+func (q *sqlQuerier) ReleaseMCPServerUserTokenRefresh(ctx context.Context, arg ReleaseMCPServerUserTokenRefreshParams) error {
+	_, err := q.db.ExecContext(ctx, releaseMCPServerUserTokenRefresh, arg.ID, arg.UpdatedAt)
+	return err
 }
 
 const updateMCPServerConfig = `-- name: UpdateMCPServerConfig :one
