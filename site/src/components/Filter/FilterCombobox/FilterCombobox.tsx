@@ -79,12 +79,6 @@ const CLEAR_ALL_MIN_CHIPS = 3;
 const labelOnlyChipClassName =
 	"text-content-primary **:data-[slot=combobox-chip-remove]:text-content-secondary";
 
-// While the menu is open on mobile the field leaves the page flow and pins
-// below the navbar, so the software keyboard cannot squeeze the dropdown.
-// `top-20` is the 72px navbar plus an 8px gap.
-const mobileOverlayClassName =
-	"fixed inset-x-6 top-20 z-30 w-auto bg-surface-primary";
-
 type FilterComboboxProps = Readonly<{
 	value: string;
 	onChange: (query: string) => void;
@@ -154,7 +148,15 @@ export function FilterCombobox({
 	const invalid = errorMessage !== undefined;
 	const isCoarsePointer = useMediaQuery(coarsePointerMediaQuery);
 	const isMobile = useMediaQuery(mobileViewportMediaQuery);
-	const mobileOverlay = isMobile && open;
+	const fieldRef = useRef<HTMLDivElement | null>(null);
+	// Opening on mobile scrolls the page so the field sits at the top of the
+	// viewport, leaving room for the dropdown above the software keyboard. The
+	// field stays in the page flow, below the content that precedes it.
+	useEffect(() => {
+		if (isMobile && open) {
+			fieldRef.current?.scrollIntoView({ block: "start" });
+		}
+	}, [isMobile, open]);
 	// Category shown in the pointer flyout. Distinct from `activeCategoryKey`,
 	// which is the committed drill-in state shared with keyboard navigation.
 	// Reset whenever the menu opens or closes so a dismissed flyout does not
@@ -428,10 +430,11 @@ export function FilterCombobox({
 				highlightRef={highlightRef}
 				onHighlightedValueChange={handleHighlightedValueChange}
 				label={placeholder}
-				className={cn(mobileOverlay && "min-h-10")}
 			>
 				<FilterComboboxInputGroup
-					className={cn(className, mobileOverlay && mobileOverlayClassName)}
+					ref={fieldRef}
+					// The 72px sticky navbar plus an 8px gap.
+					className={cn("scroll-mt-20", className)}
 				>
 					<InputGroupAddon className="self-stretch items-start border-r p-0">
 						<InputGroupButton
