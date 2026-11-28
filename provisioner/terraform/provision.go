@@ -109,9 +109,14 @@ func (s *server) Init(
 
 	s.logger.Debug(ctx, "running terraform initialization")
 	endStage := e.timings.startStage(database.ProvisionerJobTimingStageInit)
-	err = e.init(ctx, killCtx, sess)
-	if err != nil && restored && ctx.Err() == nil {
-		err = s.initWithTemplateLockFile(ctx, killCtx, e, sess, err)
+	// The captured lock file pins every provider version, so a warm plugin
+	// cache can supply them without the provider registry or a provider
+	// mirror.
+	if !restored || e.initFromPluginCache(ctx, killCtx, sess) != nil {
+		err = e.init(ctx, killCtx, sess, "")
+		if err != nil && restored && ctx.Err() == nil {
+			err = s.initWithTemplateLockFile(ctx, killCtx, e, sess, err)
+		}
 	}
 	endStage(err)
 	if err != nil {
@@ -195,7 +200,7 @@ func (s *server) initWithTemplateLockFile(ctx, killCtx context.Context, e *execu
 	if err := restoreTemplateLockFile(sess.Files); err != nil {
 		return errors.Join(initErr, err)
 	}
-	err := e.init(ctx, killCtx, sess)
+	err := e.init(ctx, killCtx, sess, "")
 	if err == nil {
 		sess.ProvisionLog(proto.LogLevel_WARN,
 			"If this warning appears on every build, push a new template version and update workspaces to it "+
