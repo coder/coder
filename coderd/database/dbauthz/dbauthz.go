@@ -6190,6 +6190,15 @@ func (q *querier) GetWorkspaceBuildProvisionerStateByID(ctx context.Context, bui
 	return fetchWithAction(q.log, q.auth, policy.ActionUpdate, q.db.GetWorkspaceBuildProvisionerStateByID)(ctx, buildID)
 }
 
+func (q *querier) GetWorkspaceBuildProvisionerStateKeyIDs(ctx context.Context, arg database.GetWorkspaceBuildProvisionerStateKeyIDsParams) ([]database.GetWorkspaceBuildProvisionerStateKeyIDsRow, error) {
+	// Deployment-wide listing exists only for the dbcrypt key rotation
+	// utility.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetWorkspaceBuildProvisionerStateKeyIDs(ctx, arg)
+}
+
 func (q *querier) GetWorkspaceBuildStatsByTemplates(ctx context.Context, since time.Time) ([]database.GetWorkspaceBuildStatsByTemplatesRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return nil, err
@@ -8316,6 +8325,13 @@ func (q *querier) UpdateEncryptedUserAIProviderKey(ctx context.Context, arg data
 		return database.UserAIProviderKey{}, err
 	}
 	return q.db.UpdateEncryptedUserAIProviderKey(ctx, arg)
+}
+
+func (q *querier) UpdateEncryptedWorkspaceBuildProvisionerState(ctx context.Context, arg database.UpdateEncryptedWorkspaceBuildProvisionerStateParams) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.UpdateEncryptedWorkspaceBuildProvisionerState(ctx, arg)
 }
 
 func (q *querier) UpdateEncryptedWorkspaceSecretValue(ctx context.Context, arg database.UpdateEncryptedWorkspaceSecretValueParams) (database.WorkspaceSecret, error) {
