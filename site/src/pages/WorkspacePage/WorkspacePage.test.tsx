@@ -1,6 +1,5 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import MockServerSocket from "jest-websocket-mock";
 import { HttpResponse, http } from "msw";
 import { useSearchParams } from "react-router";
 import type { MockInstance } from "vitest";
@@ -86,10 +85,6 @@ const testButton = async (
 	await user.click(button);
 	expect(actionMock).toHaveBeenCalled();
 };
-
-afterEach(() => {
-	MockServerSocket.clean();
-});
 
 describe("WorkspacePage", () => {
 	it("requests a delete job when the user presses Delete and confirms", async () => {
