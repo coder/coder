@@ -50,7 +50,7 @@ export const ListSessionsRow: React.FC<ListSessionsRowProps> = ({
 						<p className="m-0 line-clamp-2 wrap-anywhere">{promptPreview}</p>
 					</TooltipTrigger>
 					<TooltipContent
-						className="max-w-64 max-h-80 overflow-y-auto"
+						className="max-w-64 max-h-[min(20rem,var(--radix-popper-available-height))]"
 						side="top"
 						align="start"
 						// The portal still bubbles React clicks up to the row.

@@ -30,6 +30,11 @@ const HOVER_CLOSE_DELAY = 150;
 const FOCUSABLE_ELEMENTS =
 	'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
+/** Whether `content` scrolls and has no focusable elements to scroll to. */
+const isScrollRegion = (content: HTMLElement) =>
+	!content.querySelector(FOCUSABLE_ELEMENTS) &&
+	content.scrollHeight > content.clientHeight;
+
 /**
  * Returns an event handler that calls the consumer's handler from props, if
  * any, and then the tooltip's internal handler. Triggers are usually rendered
@@ -233,23 +238,40 @@ const InteractiveTooltipTrigger: React.FC<TooltipTriggerProps> = ({
 				if (event.key === "Enter" || event.key === " ") {
 					event.stopPropagation();
 				}
+				const content = context.content;
+				if (
+					!context.open ||
+					event.key !== "Tab" ||
+					event.shiftKey ||
+					!content
+				) {
+					return;
+				}
 				// The content is portaled, so move focus into it explicitly.
-				const first =
-					context.open && event.key === "Tab" && !event.shiftKey
-						? context.content?.querySelector<HTMLElement>(FOCUSABLE_ELEMENTS)
-						: null;
-				if (first) {
+				const focusTarget =
+					content.querySelector<HTMLElement>(FOCUSABLE_ELEMENTS) ??
+					(isScrollRegion(content) ? content : null);
+				if (focusTarget) {
 					event.preventDefault();
-					first.focus();
+					focusTarget.focus();
 				}
 			})}
 		/>
 	);
 };
 
+/**
+ * Content can scroll when it is taller than the viewport. An open Dialog's
+ * scroll lock cancels wheel and touch scrolling outside the dialog content,
+ * including this portaled tooltip, so keep those events from reaching the
+ * lock's document listener.
+ */
+const stopScrollLockPropagation = (event: React.SyntheticEvent) =>
+	event.stopPropagation();
+
 /** Surface styles shared by plain and interactive tooltips. */
 const tooltipContentClassName = cn(
-	"z-50 max-w-(--radix-popper-available-width) wrap-break-word overflow-hidden rounded-md bg-surface-primary px-3 py-2 text-xs font-medium text-content-secondary",
+	"z-50 max-h-(--radix-popper-available-height) max-w-(--radix-popper-available-width) wrap-break-word overflow-x-hidden overflow-y-auto overscroll-contain rounded-md bg-surface-primary px-3 py-2 text-xs font-medium text-content-secondary",
 	"border animate-in fade-in-0 duration-150",
 	"data-[state=closed]:animate-out data-[state=closed]:fade-out-0",
 );
@@ -267,10 +289,17 @@ type TooltipContentProps = React.ComponentProps<
 	disablePortal?: boolean;
 };
 
+/**
+ * Tooltip content is capped at the space next to its trigger and scrolls when
+ * taller. A plain tooltip cannot take focus, so keyboard users cannot scroll
+ * it: use `<Tooltip interactive>` for content that can exceed the viewport.
+ */
 export const TooltipContent: React.FC<TooltipContentProps> = ({
 	className,
 	sideOffset = 4,
 	disablePortal,
+	onWheel,
+	onTouchMove,
 	...props
 }) => {
 	const interactive = useContext(InteractiveContext);
@@ -279,6 +308,8 @@ export const TooltipContent: React.FC<TooltipContentProps> = ({
 			<InteractiveTooltipContent
 				className={className}
 				sideOffset={sideOffset}
+				onWheel={onWheel}
+				onTouchMove={onTouchMove}
 				{...props}
 			/>
 		);
@@ -288,6 +319,8 @@ export const TooltipContent: React.FC<TooltipContentProps> = ({
 		<TooltipPrimitive.Content
 			sideOffset={sideOffset}
 			className={cn(tooltipContentClassName, className)}
+			onWheel={composeEventHandlers(onWheel, stopScrollLockPropagation)}
+			onTouchMove={composeEventHandlers(onTouchMove, stopScrollLockPropagation)}
 			{...props}
 		/>
 	);
@@ -307,15 +340,44 @@ const InteractiveTooltipContent: React.FC<
 	onPointerLeave,
 	onClick,
 	onKeyDown,
+	onWheel,
+	onTouchMove,
 	...props
 }) => {
 	const { setContent, ...context } = useInteractiveContext();
+	const { content } = context;
+	// Content that scrolls and has no focusable elements is a Tab stop of its
+	// own, so keyboard users can scroll it with the arrow keys.
+	const [scrollRegion, setScrollRegion] = useState(false);
+
+	useEffect(() => {
+		if (!content) {
+			return;
+		}
+		const update = () => setScrollRegion(isScrollRegion(content));
+		update();
+		const observer = new ResizeObserver(update);
+		observer.observe(content);
+		for (const child of content.children) {
+			observer.observe(child);
+		}
+		return () => observer.disconnect();
+	}, [content]);
+
+	// Reopening while the content animates out reuses the node that leaving
+	// with Tab made inert.
+	useEffect(() => {
+		if (context.open && content) {
+			content.inert = false;
+		}
+	}, [context.open, content]);
 
 	return (
 		<PopoverPrimitive.Portal>
 			<PopoverPrimitive.Content
 				aria-labelledby={`${context.id}-trigger`}
 				collisionPadding={8}
+				tabIndex={scrollRegion ? 0 : -1}
 				{...props}
 				id={context.id}
 				ref={setContent}
@@ -329,6 +391,11 @@ const InteractiveTooltipContent: React.FC<
 				onPointerLeave={composeEventHandlers(onPointerLeave, (event) => {
 					if (event.pointerType === "mouse") context.setIsPointerOver(false);
 				})}
+				onWheel={composeEventHandlers(onWheel, stopScrollLockPropagation)}
+				onTouchMove={composeEventHandlers(
+					onTouchMove,
+					stopScrollLockPropagation,
+				)}
 				// React events bubble through portals; clicking the tooltip should
 				// not click its ancestors.
 				onClick={composeEventHandlers(onClick, (event) =>
@@ -341,13 +408,24 @@ const InteractiveTooltipContent: React.FC<
 					}
 					const focusables =
 						event.currentTarget.querySelectorAll(FOCUSABLE_ELEMENTS);
-					const edge = focusables[event.shiftKey ? 0 : focusables.length - 1];
-					if (document.activeElement === edge) {
-						// Leave through the trigger: Shift+Tab stops there, and Tab
-						// continues from the trigger's place in the page.
-						context.trigger?.focus();
-						if (event.shiftKey) event.preventDefault();
+					const edge =
+						focusables[event.shiftKey ? 0 : focusables.length - 1] ??
+						event.currentTarget;
+					if (document.activeElement !== edge || !context.trigger) {
+						return;
 					}
+					// Leave through the trigger: Shift+Tab stops there, and Tab
+					// continues from the trigger's place in the page.
+					context.trigger.focus();
+					if (event.shiftKey) {
+						event.preventDefault();
+						return;
+					}
+					// The portaled content comes after the trigger in the DOM and stays
+					// there while it animates out, so make it inert to keep the
+					// default Tab from landing back in it.
+					event.currentTarget.inert = true;
+					context.close();
 				})}
 			/>
 		</PopoverPrimitive.Portal>
