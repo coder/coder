@@ -274,6 +274,7 @@ The agent has access to a set of workspace tools that it uses to accomplish task
 | `process_list`                              | List all tracked processes in the workspace                                                                                                                                                       |
 | `process_signal`                            | Send a signal (terminate/kill) to a tracked process                                                                                                                                               |
 | `attach_file`                               | Attach a workspace file to the chat as a durable downloadable attachment                                                                                                                          |
+| `open_preview`                              | Add a button that opens a workspace port or an `.html` file or directory in the chat's right panel. Refer to [Workspace previews](./platform-controls/open-preview.md)                            |
 | `spawn_agent` (`type=general` or `explore`) | Delegate a task to a sub-agent running in parallel, optionally on a specific model                                                                                                                |
 | `list_subagent_models`                      | List the models available for `spawn_agent`'s `model_config_id` argument                                                                                                                          |
 | `wait_agent`                                | Wait for a sub-agent to complete and collect its result                                                                                                                                           |
@@ -289,7 +290,7 @@ The agent has access to a set of workspace tools that it uses to accomplish task
 These tools connect to the workspace over the same secure connection used for web terminals and IDE access.
 No additional ports or services are required in the workspace.
 
-Platform tools (`list_templates`, `read_template`, `create_workspace`, `start_workspace`, `stop_workspace`, `propose_plan`, `ask_user_question`) and orchestration tools (`spawn_agent`, `list_subagent_models`, `wait_agent`, `message_agent`, `interrupt_agent`, `list_agents`) are only available to root chats.
+Platform tools (`list_templates`, `read_template`, `create_workspace`, `start_workspace`, `stop_workspace`, `open_preview`, `propose_plan`, `ask_user_question`) and orchestration tools (`spawn_agent`, `list_subagent_models`, `wait_agent`, `message_agent`, `interrupt_agent`, `list_agents`) are only available to root chats.
 Sub-agents do not have access to these tools and cannot create workspaces or spawn further sub-agents.
 
 `spawn_agent` with `type=computer_use` works only after an administrator enables the [virtual desktop](./platform-controls/virtual-desktop.md) feature.
@@ -300,6 +301,8 @@ It also requires a model from an Anthropic, OpenAI, or OpenAI-compatible AI prov
 In plan mode, the agent can still inspect the workspace and template metadata, execute shell commands for exploration, and read process output.
 `write_file` and `edit_files` remain available only for the chat-specific plan file under `.coder/plans/`.
 Workspace MCP tools are unavailable in plan mode, and plan-mode sub-agents receive no MCP tools.
+
+`open_preview` works only after an administrator enables [workspace previews](./platform-controls/open-preview.md).
 
 ## Plan mode
 
