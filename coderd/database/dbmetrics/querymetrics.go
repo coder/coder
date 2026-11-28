@@ -1904,6 +1904,14 @@ func (m queryMetricsStore) GetChatProjectInstructionsByProjectID(ctx context.Con
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetChatProjectMemberCountsByUserID(ctx context.Context, arg database.GetChatProjectMemberCountsByUserIDParams) ([]database.GetChatProjectMemberCountsByUserIDRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatProjectMemberCountsByUserID(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetChatProjectMemberCountsByUserID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatProjectMemberCountsByUserID").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetChatProjectMemoriesByProjectID(ctx context.Context, projectID uuid.UUID) ([]database.GetChatProjectMemoriesByProjectIDRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChatProjectMemoriesByProjectID(ctx, projectID)
@@ -1925,6 +1933,14 @@ func (m queryMetricsStore) GetChatProjectMemoryByName(ctx context.Context, arg d
 	r0, r1 := m.s.GetChatProjectMemoryByName(ctx, arg)
 	m.queryLatencies.WithLabelValues("GetChatProjectMemoryByName").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatProjectMemoryByName").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetChatProjectSummariesByUserID(ctx context.Context, arg uuid.UUID) ([]database.GetChatProjectSummariesByUserIDRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatProjectSummariesByUserID(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetChatProjectSummariesByUserID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatProjectSummariesByUserID").Inc()
 	return r0, r1
 }
 

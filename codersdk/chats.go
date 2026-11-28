@@ -285,6 +285,32 @@ type ChatProjectDefaultTemplate struct {
 	Parameters map[string]string `json:"parameters,omitempty"`
 }
 
+// ChatProjectSummary is the caller's pin on a project and aggregates over
+// the caller's own top-level, non-archived chats in it. The project itself
+// comes from ListChatProjects.
+type ChatProjectSummary struct {
+	ProjectID uuid.UUID `json:"project_id" format:"uuid"`
+	Pinned    bool      `json:"pinned"`
+	// PinOrder sorts pinned projects, lowest first, with gaps. 0 means not pinned.
+	PinOrder       int32 `json:"pin_order"`
+	OwnChatCount   int64 `json:"own_chat_count"`
+	OwnUnreadCount int64 `json:"own_unread_count"`
+	OwnRunning     bool  `json:"own_running"`
+	// OwnNeedsAttention reports a chat that requires action, failed, or is paused.
+	OwnNeedsAttention bool `json:"own_needs_attention"`
+	// LastActivityAt is the latest update to one of the caller's chats.
+	LastActivityAt *time.Time `json:"last_activity_at,omitempty" format:"date-time"`
+}
+
+// ChatProjectMemberCount is how many users can use a project.
+type ChatProjectMemberCount struct {
+	ProjectID uuid.UUID `json:"project_id" format:"uuid"`
+	// MemberCount counts users who can use the project, including the owner.
+	// Suspended users are not counted. When chat sharing is unavailable,
+	// only the owner is counted.
+	MemberCount int64 `json:"member_count"`
+}
+
 // ReorderChatProjectPinsRequest sets the order of the caller's pinned chat
 // projects.
 type ReorderChatProjectPinsRequest struct {
@@ -2691,6 +2717,18 @@ func (c *ExperimentalClient) DeleteChatProject(ctx context.Context, organization
 		return ReadBodyAsError(res)
 	}
 	return nil
+}
+
+// ListChatProjectSummaries lists the caller's pin and chat aggregates for
+// each project from ListChatProjects.
+func (c *ExperimentalClient) ListChatProjectSummaries(ctx context.Context) ([]ChatProjectSummary, error) {
+	return requestJSON[[]ChatProjectSummary](ctx, c.Client, http.MethodGet, "/api/experimental/chats/projects/summaries", http.StatusOK, nil)
+}
+
+// ListChatProjectMemberCounts lists how many users can use each project
+// from ListChatProjects.
+func (c *ExperimentalClient) ListChatProjectMemberCounts(ctx context.Context) ([]ChatProjectMemberCount, error) {
+	return requestJSON[[]ChatProjectMemberCount](ctx, c.Client, http.MethodGet, "/api/experimental/chats/projects/member-counts", http.StatusOK, nil)
 }
 
 // PinChatProject pins a chat project at the end of the caller's pins. A

@@ -2134,6 +2134,28 @@ func ChatProject(project database.ChatProject, permissions codersdk.ChatProjectP
 	return converted
 }
 
+// ChatProjectSummary converts a project summary row.
+func ChatProjectSummary(row database.GetChatProjectSummariesByUserIDRow) codersdk.ChatProjectSummary {
+	return codersdk.ChatProjectSummary{
+		ProjectID:         row.ProjectID,
+		Pinned:            row.Pinned,
+		PinOrder:          row.PinOrder,
+		OwnChatCount:      row.OwnChatCount,
+		OwnUnreadCount:    row.OwnUnreadCount,
+		OwnRunning:        row.OwnRunning,
+		OwnNeedsAttention: row.OwnNeedsAttention,
+		LastActivityAt:    nullTimePtr(row.LastActivityAt),
+	}
+}
+
+// ChatProjectMemberCount converts a project member count row.
+func ChatProjectMemberCount(row database.GetChatProjectMemberCountsByUserIDRow) codersdk.ChatProjectMemberCount {
+	return codersdk.ChatProjectMemberCount{
+		ProjectID:   row.ProjectID,
+		MemberCount: row.MemberCount,
+	}
+}
+
 // ChatProjectInstructions converts a project's stored instructions.
 func ChatProjectInstructions(row database.GetChatProjectInstructionsByProjectIDRow) codersdk.ChatProjectInstructions {
 	updatedAt := row.ChatProjectInstruction.UpdatedAt

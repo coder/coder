@@ -101,6 +101,19 @@ func ChatProject(t testing.TB, db database.Store, seed database.ChatProject) dat
 	return project
 }
 
+// ChatProjectPin pins a project for a user at the end of their list. The
+// source defaults to "default", as project creation records it.
+func ChatProjectPin(t testing.TB, db database.Store, seed database.ChatProjectPin) {
+	t.Helper()
+
+	err := db.PinChatProject(genCtx, database.PinChatProjectParams{
+		UserID:    seed.UserID,
+		ProjectID: seed.ProjectID,
+		Source:    takeFirst(seed.Source, database.ChatProjectPinSourceDefault),
+	})
+	require.NoError(t, err, "pin chat project")
+}
+
 // ChatProjectTemplate attaches a template to a chat project.
 func ChatProjectTemplate(t testing.TB, db database.Store, seed database.ChatProjectTemplate) database.ChatProjectTemplate {
 	t.Helper()
