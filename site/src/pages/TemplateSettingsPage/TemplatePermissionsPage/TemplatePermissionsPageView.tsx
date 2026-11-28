@@ -1,5 +1,5 @@
 import { EllipsisVerticalIcon, UserPlusIcon } from "lucide-react";
-import { useState } from "react";
+import { useId, useState } from "react";
 import type {
 	Group,
 	ReducedUser,
@@ -17,6 +17,7 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
+import { Label } from "#/components/Label/Label";
 import {
 	Select,
 	SelectContent,
@@ -65,6 +66,9 @@ const AddTemplateUserOrGroup: React.FC<AddTemplateUserOrGroupProps> = ({
 	const [selectedOption, setSelectedOption] =
 		useState<UserOrGroupAutocompleteValue>(null);
 	const [selectedRole, setSelectedRole] = useState<TemplateRole>("use");
+	const autocompleteId = useId();
+	const autocompleteLabelId = `${autocompleteId}-label`;
+	const roleId = useId();
 	const excludeFromAutocomplete = templateACL
 		? [...templateACL.group, ...templateACL.users]
 		: [];
@@ -91,31 +95,40 @@ const AddTemplateUserOrGroup: React.FC<AddTemplateUserOrGroupProps> = ({
 				}
 			}}
 		>
-			<div className="flex items-center gap-1">
-				<UserOrGroupAutocomplete
-					exclude={excludeFromAutocomplete}
-					templateID={templateID}
-					value={selectedOption}
-					onChange={(newValue) => {
-						setSelectedOption(newValue);
-					}}
-				/>
+			<div className="flex items-end gap-2">
+				<div className="flex flex-col gap-2">
+					<Label id={autocompleteLabelId}>User or group</Label>
+					<UserOrGroupAutocomplete
+						id={autocompleteId}
+						// The name is the label, then the selection the trigger shows.
+						triggerAriaLabelledBy={`${autocompleteLabelId} ${autocompleteId}`}
+						exclude={excludeFromAutocomplete}
+						templateID={templateID}
+						value={selectedOption}
+						onChange={(newValue) => {
+							setSelectedOption(newValue);
+						}}
+					/>
+				</div>
 
-				<Select
-					value={selectedRole}
-					disabled={isLoading}
-					onValueChange={(value) => {
-						setSelectedRole(value as TemplateRole);
-					}}
-				>
-					<SelectTrigger className="w-25">
-						<SelectValue />
-					</SelectTrigger>
-					<SelectContent>
-						<SelectItem value="use">Use</SelectItem>
-						<SelectItem value="admin">Admin</SelectItem>
-					</SelectContent>
-				</Select>
+				<div className="flex flex-col gap-2">
+					<Label htmlFor={roleId}>Role</Label>
+					<Select
+						value={selectedRole}
+						disabled={isLoading}
+						onValueChange={(value) => {
+							setSelectedRole(value as TemplateRole);
+						}}
+					>
+						<SelectTrigger id={roleId} className="w-25">
+							<SelectValue />
+						</SelectTrigger>
+						<SelectContent>
+							<SelectItem value="use">Use</SelectItem>
+							<SelectItem value="admin">Admin</SelectItem>
+						</SelectContent>
+					</Select>
+				</div>
 
 				<Button
 					disabled={!selectedRole || !selectedOption || isLoading}

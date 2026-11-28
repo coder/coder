@@ -16,11 +16,13 @@ type UserOrGroupAutocompleteProps = {
 	onChange: (value: UserOrGroupAutocompleteValue) => void;
 	templateID: string;
 	exclude: UserOrGroupAutocompleteValue[];
+	id: string;
+	triggerAriaLabelledBy: string;
 };
 
 export const UserOrGroupAutocomplete: React.FC<
 	UserOrGroupAutocompleteProps
-> = ({ value, onChange, templateID, exclude }) => {
+> = ({ value, onChange, templateID, exclude, id, triggerAriaLabelledBy }) => {
 	const [inputValue, setInputValue] = useState("");
 	const [open, setOpen] = useState(false);
 
@@ -86,7 +88,8 @@ export const UserOrGroupAutocomplete: React.FC<
 			placeholder="Search for user or group"
 			noOptionsText="No users or groups found"
 			className="w-75"
-			id="user-or-group-autocomplete"
+			id={id}
+			triggerAriaLabelledBy={triggerAriaLabelledBy}
 		/>
 	);
 };
