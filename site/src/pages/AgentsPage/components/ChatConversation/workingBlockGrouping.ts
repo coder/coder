@@ -55,7 +55,10 @@ export type WorkingBlock = {
 	pieceKeys: string[];
 	/** The work ordinal of the block's slice of the live row. */
 	liveWorkOrdinal?: number;
-	/** Distinct visible tools plus hidden provider calls, not rows. */
+	/**
+	 * Model calls with output in the block: assistant messages, one per call,
+	 * and the live stream once its output joins the block.
+	 */
 	stepCount: number;
 	isLive: boolean;
 	/** Unloaded older history may hold earlier rows of this block. */
@@ -98,7 +101,10 @@ export type GroupWorkingBlocksOptions = {
 	liveBlocks: readonly RenderBlock[];
 	liveTools: readonly MergedTool[];
 	streamState?: StreamState | null;
-	/** Live keys of blocks the reader focused or toggled, kept even without steps. */
+	/**
+	 * Live keys of blocks the reader focused or toggled, kept even without a
+	 * tool call or search.
+	 */
 	keptBlockKeys?: ReadonlySet<string>;
 };
 
@@ -543,7 +549,8 @@ const getPartTimestamps = (part: TypesGen.ChatMessagePart): number[] => {
 
 /**
  * A provider-executed call that renders no row, so only its result shows
- * that the step ran. Web searches render rows and count as tools.
+ * that it ran: an interrupt can leave the call unanswered, and the next step
+ * issues it again. Web searches render rows as tools.
  */
 const isHiddenProviderResult = (part: TypesGen.ChatMessagePart): boolean =>
 	part.type === "tool-result" && isHiddenProviderExecutedPart(part);
@@ -551,6 +558,12 @@ const isHiddenProviderResult = (part: TypesGen.ChatMessagePart): boolean =>
 /** The persisted message IDs a row renders; the live row has none. */
 export const rowMessageIds = (row: TimelineRow): readonly number[] =>
 	row.type === "live" ? [] : (row.entry.mergedFrom ?? [row.entry.message.id]);
+
+/**
+ * chatd persists a tool batch's attachments as an assistant message of their
+ * own, so a file is not model output.
+ */
+const isModelOutput = (part: { type: string }) => part.type !== "file";
 
 type PiecePosition = { rowIndex: number; pieceIndex: number };
 
@@ -565,14 +578,13 @@ type DraftSlice = {
 
 type Draft = {
 	slices: DraftSlice[];
-	toolIds: Set<string>;
-	sourceBlocks: number;
-	searches: number;
-	hasProviderTool: boolean;
+	assistantIds: Set<number>;
+	hasToolCallOrSearch: boolean;
 	times: number[];
 	anchorKey?: string;
 	ordinal: number;
 	containsLiveRow: boolean;
+	containsLiveOutput: boolean;
 	containsNarration: boolean;
 	/** Type of the row whose text, or non-folding content, closed the block. */
 	closedByRowType?: TimelineRow["type"];
@@ -632,14 +644,13 @@ export const groupWorkingBlocks = (
 		if (!open) {
 			open = {
 				slices: [],
-				toolIds: new Set(),
-				sourceBlocks: 0,
-				searches: 0,
-				hasProviderTool: false,
+				assistantIds: new Set(),
+				hasToolCallOrSearch: false,
 				times: [],
 				anchorKey,
 				ordinal,
 				containsLiveRow: false,
+				containsLiveOutput: false,
 				containsNarration: false,
 				isPartial: mayContinueOlderBlock,
 			};
@@ -662,7 +673,14 @@ export const groupWorkingBlocks = (
 				workOrdinals,
 			});
 		}
-		open.containsLiveRow ||= rows[rowIndex].type === "live";
+		const row = rows[rowIndex];
+		open.containsLiveRow ||= row.type === "live";
+		if (
+			row.type === "live" &&
+			rowPieces[rowIndex]?.pieces[pieceIndex].blocks.some(isModelOutput)
+		) {
+			open.containsLiveOutput = true;
+		}
 		pieceDrafts[rowIndex][pieceIndex] = open;
 		return open;
 	};
@@ -681,7 +699,8 @@ export const groupWorkingBlocks = (
 
 		const isEnded = isRowEnded(rowIndex);
 		// The empty stream before each step extends a block but never starts
-		// one, so a turn's first moments keep the thinking indicator.
+		// one, so a turn's first moments keep the thinking indicator. It is not
+		// a step yet: if it turns out to be the answer, it leaves the block.
 		if (split.pieces.length === 0 && open) {
 			open.slices.push({
 				rowIndex,
@@ -724,17 +743,13 @@ export const groupWorkingBlocks = (
 				isEnded,
 			});
 			workOrdinal += 1;
-			const tools =
-				row.type === "live" ? options.liveTools : row.entry.parsed.tools;
 			for (const block of piece.blocks) {
 				if (block.type === "tool") {
-					draft.toolIds.add(block.id);
 					draftOfTool.set(block.id, draft);
-					draft.hasProviderTool ||= tools.some(
-						(tool) => tool.id === block.id && tool.providerExecuted === true,
-					);
-				} else if (block.type === "sources") {
-					draft.sourceBlocks += 1;
+				}
+				// Citations count as a search: some providers cite without one.
+				if (block.type === "tool" || block.type === "sources") {
+					draft.hasToolCallOrSearch = true;
 				}
 			}
 		}
@@ -792,9 +807,9 @@ export const groupWorkingBlocks = (
 				: (partIndex) =>
 						getDraftAtBlock(rowIndex, entry.parsed.partBlockIndices[partIndex]);
 		} else {
-			// A hidden entry, like a tool result, counts toward the block open
-			// after the previous row. A hidden provider call counts toward the
-			// block the next row starts or continues, when there is one.
+			// A hidden entry, like a tool result, joins the block open after the
+			// previous row. A hidden provider call joins the block the next row
+			// starts or continues, when there is one.
 			let draft =
 				previousRowIndex === undefined
 					? undefined
@@ -809,14 +824,6 @@ export const groupWorkingBlocks = (
 		}
 
 		for (const [partIndex, part] of parts.entries()) {
-			const timestamps = getPartTimestamps(part);
-			// Results, not calls: a step can end with a provider call
-			// unanswered, and the next step issues that call again.
-			const isSearch = isHiddenProviderResult(part);
-			if (timestamps.length === 0 && !isSearch) {
-				continue;
-			}
-
 			// A tool's parts join its call's block, even from a later message.
 			const toolId =
 				part.type === "tool-call" || part.type === "tool-result"
@@ -828,9 +835,12 @@ export const groupWorkingBlocks = (
 			if (!draft) {
 				continue;
 			}
-			draft.times.push(...timestamps);
-			if (isSearch) {
-				draft.searches += 1;
+			if (entry.message.role === "assistant" && isModelOutput(part)) {
+				draft.assistantIds.add(entry.message.id);
+			}
+			draft.times.push(...getPartTimestamps(part));
+			if (isHiddenProviderResult(part)) {
+				draft.hasToolCallOrSearch = true;
 			}
 		}
 	}
@@ -879,28 +889,22 @@ export const groupWorkingBlocks = (
 					? getDraftAtBlock(liveRowIndex, searchLeadInIndex)
 					: liveDrafts[citedPieceIndex];
 			if (searchDraft) {
-				searchDraft.searches += 1;
+				searchDraft.hasToolCallOrSearch = true;
+				searchDraft.containsLiveOutput = true;
 			}
 		}
 	}
-
-	// Source blocks count as searches only when no provider search does,
-	// hidden or shown as a tool: some providers cite without a search, and an
-	// interrupt commits a search's result apart from the answer citing it.
-	const getStepCount = (draft: Draft) =>
-		draft.toolIds.size +
-		draft.searches +
-		(draft.searches > 0 || draft.hasProviderTool ? 0 : draft.sourceBlocks);
 
 	const getLiveKey = (draft: Draft) =>
 		`working:live:${draft.anchorKey ?? "head"}:${draft.ordinal}`;
 
 	// Completed reasoning alone stays visible. The live turn folds from its
 	// first reasoning, so thinking never shows and then vanishes once a tool
-	// call arrives, and unfolds only when text follows it without steps.
+	// call arrives, and unfolds only when text follows it without a tool call
+	// or search.
 	const blockDrafts = drafts.filter(
 		(draft) =>
-			getStepCount(draft) > 0 ||
+			draft.hasToolCallOrSearch ||
 			// Otherwise a tool-less ended turn's narration reads as its answer.
 			draft.containsNarration ||
 			(draft.containsLiveRow &&
@@ -956,7 +960,7 @@ export const groupWorkingBlocks = (
 			liveWorkOrdinal: draft.slices.find(
 				({ rowIndex }) => rowIndex === liveRowIndex,
 			)?.workOrdinals[0],
-			stepCount: getStepCount(draft),
+			stepCount: draft.assistantIds.size + (draft.containsLiveOutput ? 1 : 0),
 			isLive,
 			isPartial: draft.isPartial,
 			startedAt: draft.times.length > 0 ? Math.min(...draft.times) : undefined,

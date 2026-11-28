@@ -169,7 +169,9 @@ export const LabeledNarrationFolds: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		await userEvent.click(
-			within(canvasElement).getByRole("button", { name: "Worked for 1s" }),
+			within(canvasElement).getByRole("button", {
+				name: "Worked for 1s (1 step)",
+			}),
 		);
 	},
 };
