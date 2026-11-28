@@ -449,6 +449,10 @@ describe("WorkspacePage", () => {
 	});
 
 	describe("Current state", () => {
+		// Opening a sidebar re-renders the whole page, and each role query
+		// scans it, which can pass the 1s default on a loaded CI runner.
+		const pageRender = { timeout: 5_000 };
+
 		it("conveys which sidebar panel is open", async () => {
 			const user = userEvent.setup();
 			await renderWorkspacePage(MockWorkspace);
@@ -456,11 +460,19 @@ describe("WorkspacePage", () => {
 			await user.click(
 				screen.getByRole("button", { name: "Resources", pressed: false }),
 			);
-			await screen.findByRole("button", { name: "Resources", pressed: true });
+			await screen.findByRole(
+				"button",
+				{ name: "Resources", pressed: true },
+				pageRender,
+			);
 			screen.getByRole("button", { name: "History", pressed: false });
 
 			await user.click(screen.getByRole("button", { name: "History" }));
-			await screen.findByRole("button", { name: "History", pressed: true });
+			await screen.findByRole(
+				"button",
+				{ name: "History", pressed: true },
+				pageRender,
+			);
 			screen.getByRole("button", { name: "Resources", pressed: false });
 		});
 
@@ -480,24 +492,29 @@ describe("WorkspacePage", () => {
 				},
 			});
 			await user.click(screen.getByRole("button", { name: "Resources" }));
-
-			await user.click(
-				await screen.findByRole("button", { name: agentResourceName }),
+			await screen.findByRole(
+				"button",
+				{ name: "Resources", pressed: true },
+				pageRender,
 			);
-			await screen.findByRole("button", {
-				name: agentResourceName,
-				current: true,
-			});
+
+			await user.click(screen.getByRole("button", { name: agentResourceName }));
+			await screen.findByRole(
+				"button",
+				{ name: agentResourceName, current: true },
+				pageRender,
+			);
 			await user.click(
 				screen.getByRole("button", {
 					name: volumeResourceName,
 					current: false,
 				}),
 			);
-			await screen.findByRole("button", {
-				name: volumeResourceName,
-				current: true,
-			});
+			await screen.findByRole(
+				"button",
+				{ name: volumeResourceName, current: true },
+				pageRender,
+			);
 			screen.getByRole("button", { name: agentResourceName, current: false });
 		});
 	});
