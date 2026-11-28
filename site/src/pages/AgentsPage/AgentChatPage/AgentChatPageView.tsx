@@ -48,6 +48,7 @@ import {
 import { ChatTopBar } from "../components/ChatTopBar";
 import { useEmbedContext } from "../components/EmbedContext";
 import { GitPanel } from "../components/GitPanel/GitPanel";
+import type { GitViewRequest } from "../components/GitPanel/gitViews";
 import { AppPanel } from "../components/RightPanel/AppPanel";
 import { DebugPanel } from "../components/RightPanel/DebugPanel/DebugPanel";
 import { DesktopPanel } from "../components/RightPanel/DesktopPanel";
@@ -264,6 +265,12 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	// focuses its active tab once per id, and clears it so a remount does not
 	// move focus again.
 	const [panelFocusRequestId, setPanelFocusRequestId] = useState<number>();
+	// A Git row also opens its view in the Git panel, which stays mounted while
+	// hidden. The id keeps counting, so a repeated click applies again, and the
+	// applied id stops a remounted panel from showing it again.
+	const [gitViewRequest, setGitViewRequest] = useState<GitViewRequest>();
+	const [appliedGitViewRequestId, setAppliedGitViewRequestId] =
+		useState<number>();
 
 	const canSubmitChatTurn = !isInputDisabled && !isSubmissionPending;
 
@@ -412,6 +419,12 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 
 	const openOverviewTarget = (target: OverviewTarget) => {
 		setPanelFocusRequestId((id) => (id ?? 0) + 1);
+		if (target.tabId === "git") {
+			setGitViewRequest((previous) => ({
+				id: (previous?.id ?? 0) + 1,
+				view: target.view,
+			}));
+		}
 		activateRightPanelTab(target.tabId);
 	};
 
@@ -822,6 +835,12 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 									remoteDiffStats={chat.diff_statuses}
 									primaryDiffStatus={chat.diff_status}
 									chatInputRef={editing.chatInputRef}
+									viewRequest={
+										gitViewRequest?.id !== appliedGitViewRequestId
+											? gitViewRequest
+											: undefined
+									}
+									onViewRequestApplied={setAppliedGitViewRequestId}
 								/>
 							</SidebarTab>
 

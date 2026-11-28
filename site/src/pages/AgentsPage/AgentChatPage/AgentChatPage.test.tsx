@@ -351,6 +351,37 @@ describe("AgentChatPage", () => {
 		expect(localStorage.getItem(overviewCardOpenStorageKey)).toBeNull();
 	});
 
+	it("opens a pull request row's diff in the Git tab", async () => {
+		const mockOtherRef = {
+			...MockChatDiffStatus,
+			git_branch: "feat/other",
+			pr_number: 23020,
+			url: "https://github.com/coder/coder/pull/23020",
+		};
+		const mockTwoPullRequestsChat = {
+			...MockChat,
+			diff_status: MockChatDiffStatus,
+			diff_statuses: [mockOtherRef, MockChatDiffStatus],
+		};
+		mockChatPageApi(mockTwoPullRequestsChat);
+		vi.spyOn(API.experimental, "getChatDiffContents").mockResolvedValue({
+			chat_id: mockTwoPullRequestsChat.id,
+		});
+		const user = userEvent.setup();
+		renderChatPage(mockTwoPullRequestsChat);
+		await waitForLoadedChat();
+
+		const card = await screen.findByRole("complementary", {
+			name: "Overview",
+		});
+		await user.click(within(card).getByRole("button", { name: /#23020/ }));
+
+		expect(screen.getByRole("link", { name: "View PR" })).toHaveAttribute(
+			"href",
+			mockOtherRef.url,
+		);
+	});
+
 	it("retries the overview card's earlier attachments after a failure", async () => {
 		mockChatPageApi(MockChat);
 		mockOlderMessages();
