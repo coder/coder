@@ -1578,10 +1578,13 @@ func TestSSH(t *testing.T) {
 		client, workspace, agentToken := setupWorkspaceForAgent(t)
 		inv, root := clitest.New(t, "ssh", "-l", logDir, workspace.Name)
 		clitest.SetupConfig(t, client, root)
-		ctx := testutil.Context(t, testutil.WaitMedium)
+		// Without a deadline on inv, StartWithWaiter caps the whole command at
+		// WaitMedium, which has not been enough for the remote shell in CI.
+		// Share one WaitLong budget between the expecter and the invocation.
+		ctx := testutil.Context(t, testutil.WaitLong)
 		stdout := expecter.NewAttachedToInvocation(t, inv)
 		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
-		w := clitest.StartWithWaiter(t, inv)
+		w := clitest.StartWithWaiter(t, inv.WithContext(ctx))
 
 		stdout.ExpectMatch(ctx, "Waiting")
 
