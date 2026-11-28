@@ -148,7 +148,7 @@ func TestBuildAuthHeadersSkipsFailedToken(t *testing.T) {
 					OauthRefreshFailureReason: "invalid_grant",
 				},
 			},
-			uuid.New(), nil,
+			uuid.New(), nil, nil,
 		)
 		require.NotContains(t, headers, "Authorization")
 	})
@@ -164,7 +164,7 @@ func TestBuildAuthHeadersSkipsFailedToken(t *testing.T) {
 					TokenType:         "Bearer",
 				},
 			},
-			uuid.New(), nil,
+			uuid.New(), nil, nil,
 		)
 		require.Equal(t, "Bearer valid", headers["Authorization"])
 	})
