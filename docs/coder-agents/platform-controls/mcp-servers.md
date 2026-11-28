@@ -71,12 +71,15 @@ The administrator configures the OAuth2 client, and each user independently comp
 
 The `oauth2_client_registration` field sets how Coder gets the OAuth2 client:
 
-| Value     | Description                                                                                                                                            |
-|-----------|--------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `dynamic` | Coder discovers the provider and registers a client for the MCP server URL. Coder sets the client ID, client secret, authorization URL, and token URL. |
-| `manual`  | You register a client with the provider and enter its details.                                                                                         |
+| Value               | Description                                                                                                                                                                             |
+|---------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `dynamic`           | Coder discovers the provider and registers a client for the MCP server URL with Dynamic Client Registration. Coder sets the client ID, client secret, authorization URL, and token URL. |
+| `metadata_document` | Coder discovers the provider and identifies itself with an OAuth Client ID Metadata Document. The client ID is the URL of the document, and the client has no secret.                   |
+| `manual`            | You register a client with the provider and enter its details.                                                                                                                          |
 
-When a request sets the server URL or an authentication field but omits `oauth2_client_registration`, Coder uses `dynamic` if `oauth2_client_id`, `oauth2_auth_url`, and `oauth2_token_url` are all empty.
+In a request, `dynamic` and `metadata_document` both select automatic registration.
+Coder picks the method when it registers a client, and the stored value names the method it used.
+When a request sets the server URL or an authentication field but omits `oauth2_client_registration`, Coder uses automatic registration if `oauth2_client_id`, `oauth2_auth_url`, and `oauth2_token_url` are all empty.
 Otherwise, Coder keeps the current value, or uses `manual` for a new server.
 
 **Manual registration**: provide all three fields together:
@@ -104,12 +107,21 @@ The value must be an absolute URI without a fragment or user information.
 A manual configuration sends no `resource` parameter unless you set this field.
 Leave it empty for providers that reject the parameter, such as Microsoft Entra ID.
 
-**Dynamic registration**:
-Coder discovers the provider and registers a client in this order:
+**Automatic registration**:
+Coder discovers the provider and gets a client in this order:
 
 1. RFC 9728: Protected Resource Metadata
 1. RFC 8414: Authorization Server Metadata
-1. RFC 7591: Dynamic Client Registration
+1. RFC 7591: Dynamic Client Registration, or a Client ID Metadata Document
+
+Coder uses Dynamic Client Registration when the authorization server metadata has a `registration_endpoint`.
+Otherwise, Coder uses a Client ID Metadata Document when the metadata sets `client_id_metadata_document_supported` and the Coder access URL is a public HTTPS URL, which means its host is not `localhost` or an IP address in a private, loopback, link-local, or other special-use range.
+Coder doesn't resolve the access URL host name.
+If the authorization server can't reach that host, for example on a private network, users can't connect, so register a client manually.
+Coder serves the document without authentication at `<access URL>/api/experimental/mcp/servers/<server ID>/oauth2/client-metadata.json`, which is also the client ID.
+It serves the document as long as the client ID of the configuration is that URL, also after you change the configuration to `manual`.
+An authorization server that supports only Client ID Metadata Documents fails registration when the access URL is not a public HTTPS URL.
+If you change the host of the access URL, save the server again with a new registration, as described below, so that the client ID points to the new host.
 
 Discovery sets `oauth2_scopes` to the `scopes_supported` of the RFC 8414 metadata, and records its `revocation_endpoint` when the metadata advertises one.
 It sets `oauth2_resource` to the Protected Resource Metadata `resource` that matches the MCP server URL.
@@ -117,12 +129,12 @@ When none matches, it uses the server URL with the scheme and host lowercased an
 When a request registers a client, a new, non-empty value for `oauth2_scopes`, `oauth2_revocation_url`, or `oauth2_resource` in the same request overrides the discovered value.
 A value that the request repeats unchanged doesn't override it.
 
-Coder registers a new client when you save a `dynamic` configuration that has no client for its server URL.
+Coder registers a new client when you save an automatic configuration that has no client for its server URL.
 Registration happens when you:
 
 - Create the server.
 - Change the auth type to OAuth2.
-- Change `oauth2_client_registration` from `manual` to `dynamic`.
+- Change `oauth2_client_registration` from `manual` to `dynamic` or `metadata_document`.
 - Change the server URL.
 
 If discovery or registration fails, the request fails and the server doesn't change.
@@ -130,7 +142,7 @@ If the server changes while Coder registers the client, the request fails with `
 Send the request again.
 To register a new client for the same server URL, set `oauth2_client_registration` to `manual`, then set it to `dynamic` in a second request.
 
-Coder owns the client ID, client secret, authorization URL, and token URL of a `dynamic` configuration.
+Coder owns the client ID, client secret, authorization URL, and token URL of an automatic configuration.
 A request can leave these fields empty or repeat their stored values, and Coder ignores them.
 A request that sets one of them to another value fails unless it also sets `oauth2_client_registration` to `manual`.
 When you change a configuration to `manual`, Coder keeps the registered client.
@@ -143,7 +155,7 @@ Users connect their own accounts in **Agents** > **Settings** > **MCP connection
 Refer to [Connect to MCP servers](../extending-agents.md#connect-to-mcp-servers) for the steps users follow.
 Tokens are stored per-user and refreshed automatically.
 Changing the server URL, authentication type, `oauth2_client_id`, `oauth2_token_url`, `oauth2_revocation_url`, or `oauth2_resource` deletes every user's stored token, so users must connect again.
-A new dynamic registration replaces `oauth2_client_id`, so it also deletes every user's stored token.
+A new automatic registration replaces `oauth2_client_id`, so it also deletes every user's stored token.
 Users can disconnect in **MCP connections** or through the API to remove stored tokens.
 When a revocation endpoint is configured, disconnecting also asks the provider to revoke the token (RFC 7009).
 Provider revocation is best-effort: the stored token is always deleted from Coder, and the disconnect response reports whether provider revocation succeeded via `token_revoked` and `token_revocation_error`.

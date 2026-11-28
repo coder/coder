@@ -187,6 +187,8 @@ func TestRefreshOAuth2TokenResourceIndicator(t *testing.T) {
 
 			forms := make(chan url.Values, 1)
 			tokenSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				// A public client sends client_id in the body, not Basic auth.
+				assert.Empty(t, r.Header.Get("Authorization"))
 				if !assert.NoError(t, r.ParseForm()) {
 					http.Error(w, "bad form", http.StatusBadRequest)
 					return

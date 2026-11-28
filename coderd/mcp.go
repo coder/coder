@@ -33,6 +33,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/coderd/util/xurl"
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/safedial"
@@ -921,7 +922,7 @@ func writeInvalidMCPServerAuth(ctx context.Context, rw http.ResponseWriter, err 
 
 func writeMCPOAuth2RegistrationFailed(ctx context.Context, rw http.ResponseWriter, err error) {
 	httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-		Message: "OAuth2 auto-discovery failed. Set oauth2_client_registration to manual and provide oauth2_client_id, oauth2_auth_url, and oauth2_token_url, or ensure the MCP server supports RFC 9728 (Protected Resource Metadata), RFC 8414 (Authorization Server Metadata), and RFC 7591 (Dynamic Client Registration).",
+		Message: "OAuth2 auto-discovery failed. Set oauth2_client_registration to manual and provide oauth2_client_id, oauth2_auth_url, and oauth2_token_url, or ensure the MCP server supports RFC 9728 (Protected Resource Metadata), RFC 8414 (Authorization Server Metadata), and RFC 7591 (Dynamic Client Registration) or OAuth Client ID Metadata Documents.",
 		Detail:  err.Error(),
 	})
 }
@@ -946,13 +947,18 @@ func planMCPServerConfigWrite(prev database.MCPServerConfig, req codersdk.Update
 		case next.OAuth2ClientRegistration == "":
 			next.OAuth2ClientRegistration = string(codersdk.MCPServerOAuth2ClientRegistrationManual)
 		}
-		if next.OAuth2ClientRegistration == string(codersdk.MCPServerOAuth2ClientRegistrationDynamic) {
+		if isAutomaticOAuth2Registration(next.OAuth2ClientRegistration) {
 			if suppliesOAuth2Client(prev, req) {
 				return mcpServerConfigWrite{}, invalidMCPServerAuthError{
 					message: "Set oauth2_client_registration to manual to edit the OAuth2 client ID, client secret, auth URL, or token URL.",
 				}
 			}
-			// Coder owns the client of a dynamic config. A new registration
+			// Discovery picks the method of a new client, so an automatic
+			// config keeps the method its current client was made with.
+			if isAutomaticOAuth2Registration(prev.OAuth2ClientRegistration) {
+				next.OAuth2ClientRegistration = prev.OAuth2ClientRegistration
+			}
+			// Coder owns the client of an automatic config. A new registration
 			// replaces it; otherwise the registered client stays.
 			next.OAuth2ClientID = prev.OAuth2ClientID
 			next.OAuth2ClientSecret = prev.OAuth2ClientSecret
@@ -990,17 +996,25 @@ func setsMCPServerAuthField(req codersdk.UpdateMCPServerConfigRequest) bool {
 		req.CustomHeaders != nil
 }
 
-// oauth2RegistrationKey returns the server URL that the dynamic OAuth2
-// client of c must be registered for, or "" when c has no dynamic client.
+// oauth2RegistrationKey returns the server URL that the automatic OAuth2
+// client of c must be registered for, or "" when c has no automatic
+// client.
 func oauth2RegistrationKey(c database.MCPServerConfig) string {
-	if c.AuthType != "oauth2" || c.OAuth2ClientRegistration != string(codersdk.MCPServerOAuth2ClientRegistrationDynamic) {
+	if c.AuthType != "oauth2" || !isAutomaticOAuth2Registration(c.OAuth2ClientRegistration) {
 		return ""
 	}
 	return c.Url
 }
 
+// isAutomaticOAuth2Registration reports whether Coder owns the OAuth2
+// client of a config whose oauth2_client_registration is method.
+func isAutomaticOAuth2Registration(method string) bool {
+	return method == string(codersdk.MCPServerOAuth2ClientRegistrationDynamic) ||
+		method == string(codersdk.MCPServerOAuth2ClientRegistrationMetadataDocument)
+}
+
 // suppliesOAuth2Client reports whether req sets an OAuth2 client field to
-// a value that is not empty and is not the stored value. A dynamic config
+// a value that is not empty and is not the stored value. An automatic config
 // cannot use such a value, because Coder owns its client.
 func suppliesOAuth2Client(prev database.MCPServerConfig, req codersdk.UpdateMCPServerConfigRequest) bool {
 	supplies := func(v *string, prevValue string) bool {
@@ -1055,6 +1069,7 @@ func applyOAuth2Registration(prev, next database.MCPServerConfig, req codersdk.U
 		return discovered
 	}
 
+	next.OAuth2ClientRegistration = string(registration.method)
 	next.OAuth2ClientID = registration.clientID
 	next.OAuth2ClientSecret = registration.clientSecret
 	next.OAuth2ClientSecretKeyID = sql.NullString{}
@@ -1443,6 +1458,11 @@ func (api *API) mcpServerOAuth2Callback(rw http.ResponseWriter, r *http.Request)
 		scopes = strings.Split(config.OAuth2Scopes, " ")
 	}
 	oauth2Config.Scopes = scopes
+	// A public client authenticates with client_id alone (method "none"),
+	// so do not probe with an empty Basic password first.
+	if config.OAuth2ClientSecret == "" {
+		oauth2Config.Endpoint.AuthStyle = oauth2.AuthStyleInParams
+	}
 
 	exchangeClient := *api.mcpHTTPClient
 	exchangeClient.CheckRedirect = safedial.CheckSameOriginRedirect
@@ -1771,6 +1791,75 @@ func (api *API) markMCPTokenRefreshFailure(
 // Path values must stay aligned with it.
 func mcpServerOAuth2CallbackPath(configID uuid.UUID) string {
 	return fmt.Sprintf("/api/experimental/mcp/servers/%s/oauth2/callback", configID)
+}
+
+// mcpServerOAuth2ClientMetadataPath returns the path of the client ID
+// metadata document of a config. Like the callback path it is frozen: the
+// URL is the client ID that authorization servers store and fetch.
+func mcpServerOAuth2ClientMetadataPath(configID uuid.UUID) string {
+	return fmt.Sprintf("/api/experimental/mcp/servers/%s/oauth2/client-metadata.json", configID)
+}
+
+// mcpClientMetadataDocument is an OAuth Client ID Metadata Document
+// (draft-ietf-oauth-client-id-metadata-document-00 section 4.1). The
+// values are RFC 7591 client metadata.
+type mcpClientMetadataDocument struct {
+	ClientID                string   `json:"client_id"`
+	ClientName              string   `json:"client_name"`
+	ClientURI               string   `json:"client_uri"`
+	RedirectURIs            []string `json:"redirect_uris"`
+	GrantTypes              []string `json:"grant_types"`
+	ResponseTypes           []string `json:"response_types"`
+	TokenEndpointAuthMethod string   `json:"token_endpoint_auth_method"`
+}
+
+// Serves the client ID metadata document that an authorization server
+// fetches to identify Coder as the OAuth2 client of an MCP server config.
+//
+// @Summary Get MCP server OAuth2 client metadata document
+// @ID get-mcp-server-oauth2-client-metadata-document
+// @Tags MCP
+// @Produce json
+// @Param mcpServer path string true "MCP server config ID" format(uuid)
+// @Success 200
+// @Router /api/experimental/mcp/servers/{mcpServer}/oauth2/client-metadata.json [get]
+// @x-apidocgen {"skip": true}
+func (api *API) mcpServerOAuth2ClientMetadata(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	configID, ok := parseMCPServerConfigID(rw, r)
+	if !ok {
+		return
+	}
+	// Authorization servers fetch the document without a Coder session.
+	// It holds only values that the authorization flow already shows the
+	// provider and the browser.
+	//nolint:gocritic // Unauthenticated read of public client metadata.
+	config, err := api.Database.GetMCPServerConfigByID(dbauthz.AsSystemRestricted(ctx), configID)
+	if err != nil {
+		if httpapi.Is404Error(err) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+	// Serve while the config's client ID is this document's URL, also after
+	// an admin switches the config to manual and keeps the client. The path
+	// match, not the host, keeps a client ID from before an access URL host
+	// change working while the old host still reaches this deployment.
+	if config.AuthType != "oauth2" || !strings.HasSuffix(config.OAuth2ClientID, mcpServerOAuth2ClientMetadataPath(config.ID)) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, mcpClientMetadataDocument{
+		ClientID:                config.OAuth2ClientID,
+		ClientName:              "Coder",
+		ClientURI:               api.AccessURL.String(),
+		RedirectURIs:            []string{api.AccessURL.String() + mcpServerOAuth2CallbackPath(config.ID)},
+		GrantTypes:              []string{"authorization_code", "refresh_token"},
+		ResponseTypes:           []string{"code"},
+		TokenEndpointAuthMethod: "none",
+	})
 }
 
 // parseMCPServerConfigID extracts the MCP server config UUID from the
@@ -2143,9 +2232,10 @@ func withTrailingSlash(path string) string {
 }
 
 // mcpOAuth2Discovery holds the result of MCP OAuth2 auto-discovery
-// and Dynamic Client Registration.
+// and client registration.
 type mcpOAuth2Discovery struct {
 	serverURL     string // the MCP server URL the client is registered for
+	method        codersdk.MCPServerOAuth2ClientRegistration
 	clientID      string
 	clientSecret  string
 	authURL       string
@@ -2192,6 +2282,9 @@ type authServerMetadata struct {
 	RegistrationEndpoint  string   `json:"registration_endpoint,omitempty"`
 	RevocationEndpoint    string   `json:"revocation_endpoint,omitempty"`
 	ScopesSupported       []string `json:"scopes_supported,omitempty"`
+	// ClientIDMetadataDocumentSupported is defined by
+	// draft-ietf-oauth-client-id-metadata-document-00 section 5.
+	ClientIDMetadataDocumentSupported bool `json:"client_id_metadata_document_supported,omitempty"`
 }
 
 // fetchJSON performs a GET request to the given URL with the
@@ -2447,6 +2540,13 @@ func registerOAuth2Client(
 // the registration.
 func (api *API) registerMCPOAuth2Client(ctx context.Context, configID uuid.UUID, serverURL string) (*mcpOAuth2Discovery, error) {
 	callbackURL := api.AccessURL.String() + mcpServerOAuth2CallbackPath(configID)
+	// An authorization server can fetch a client ID metadata document
+	// only from a public https URL (draft-ietf-oauth-client-id-metadata-document-00
+	// section 3).
+	var clientMetadataURL string
+	if xurl.IsPublicHTTPS(api.AccessURL) {
+		clientMetadataURL = api.AccessURL.JoinPath(mcpServerOAuth2ClientMetadataPath(configID)).String()
+	}
 	// Discovery targets are attacker-influenced (the MCP server URL and
 	// any endpoints or redirects it advertises), so all discovery traffic
 	// goes through an SSRF-guarded client that refuses private/internal
@@ -2455,7 +2555,7 @@ func (api *API) registerMCPOAuth2Client(ctx context.Context, configID uuid.UUID,
 	if httpClient.Timeout == 0 {
 		httpClient.Timeout = 30 * time.Second
 	}
-	result, err := discoverAndRegisterMCPOAuth2(ctx, &httpClient, serverURL, callbackURL)
+	result, err := discoverAndRegisterMCPOAuth2(ctx, &httpClient, serverURL, callbackURL, clientMetadataURL)
 	if err != nil {
 		api.Logger.Warn(ctx, "mcp oauth2 auto-discovery failed",
 			slog.F("url", serverURL),
@@ -2477,13 +2577,19 @@ func (api *API) registerMCPOAuth2Client(ctx context.Context, configID uuid.UUID,
 }
 
 // discoverAndRegisterMCPOAuth2 performs the full MCP OAuth2
-// discovery and Dynamic Client Registration flow:
+// discovery and client registration flow:
 //
 //  1. Discover the authorization server via Protected Resource
 //     Metadata (RFC 9728).
 //  2. Fetch Authorization Server Metadata (RFC 8414).
-//  3. Register a client via Dynamic Client Registration
-//     (RFC 7591).
+//  3. Register a client via Dynamic Client Registration (RFC 7591)
+//     when the authorization server offers it, else use
+//     clientMetadataURL as the client ID when the server supports
+//     Client ID Metadata Documents. clientMetadataURL is "" when the
+//     access URL is not public https. MCP authorization 2025-11-25
+//     recommends the other order, but the document works only when
+//     the authorization server can reach the access URL, which Coder
+//     cannot check, so DCR comes first wherever it works.
 //  4. Return the discovered endpoints and credentials.
 //
 // Unlike a root-only approach, this implementation follows the
@@ -2491,7 +2597,7 @@ func (api *API) registerMCPOAuth2Client(ctx context.Context, configID uuid.UUID,
 // §3.1 and RFC 8414 §3.1, which is required for servers that
 // serve metadata at path-specific URLs (e.g.
 // https://api.githubcopilot.com/mcp/).
-func discoverAndRegisterMCPOAuth2(ctx context.Context, httpClient *http.Client, mcpServerURL, callbackURL string) (*mcpOAuth2Discovery, error) {
+func discoverAndRegisterMCPOAuth2(ctx context.Context, httpClient *http.Client, mcpServerURL, callbackURL, clientMetadataURL string) (*mcpOAuth2Discovery, error) {
 	// Parse the MCP server URL into origin and path.
 	parsed, err := url.Parse(mcpServerURL)
 	if err != nil {
@@ -2522,31 +2628,40 @@ func discoverAndRegisterMCPOAuth2(ctx context.Context, httpClient *http.Client, 
 		)
 	}
 
-	// Only RegistrationEndpoint needs checking here;
-	// discoverAuthServerMetadata already validates that
+	// Step 3: discoverAuthServerMetadata already validates that
 	// AuthorizationEndpoint and TokenEndpoint are present.
-	if asMeta.RegistrationEndpoint == "" {
-		return nil, xerrors.New(
-			"authorization server does not advertise a " +
-				"registration_endpoint (dynamic client " +
-				"registration may not be supported)",
+	method := codersdk.MCPServerOAuth2ClientRegistrationDynamic
+	var clientID, clientSecret string
+	switch {
+	case asMeta.RegistrationEndpoint != "":
+		clientID, clientSecret, err = registerOAuth2Client(
+			ctx, httpClient, asMeta.RegistrationEndpoint, callbackURL, "Coder",
 		)
-	}
-
-	// Step 3: Register via Dynamic Client Registration
-	// (RFC 7591).
-	clientID, clientSecret, err := registerOAuth2Client(
-		ctx, httpClient, asMeta.RegistrationEndpoint, callbackURL, "Coder",
-	)
-	if err != nil {
-		return nil, xerrors.Errorf(
-			"dynamic client registration: %w", err,
+		if err != nil {
+			return nil, xerrors.Errorf(
+				"dynamic client registration: %w", err,
+			)
+		}
+	case asMeta.ClientIDMetadataDocumentSupported && clientMetadataURL != "":
+		method = codersdk.MCPServerOAuth2ClientRegistrationMetadataDocument
+		clientID = clientMetadataURL
+	case asMeta.ClientIDMetadataDocumentSupported:
+		return nil, xerrors.New(
+			"authorization server supports only Client ID Metadata " +
+				"Documents, which require a public https Coder access URL",
+		)
+	default:
+		return nil, xerrors.New(
+			"authorization server advertises neither a " +
+				"registration_endpoint nor " +
+				"client_id_metadata_document_supported",
 		)
 	}
 
 	scopes := strings.Join(asMeta.ScopesSupported, " ")
 
 	return &mcpOAuth2Discovery{
+		method:        method,
 		clientID:      clientID,
 		clientSecret:  clientSecret,
 		authURL:       asMeta.AuthorizationEndpoint,

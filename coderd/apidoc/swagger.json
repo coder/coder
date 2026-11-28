@@ -332,6 +332,32 @@
 				}
 			}
 		},
+		"/api/experimental/mcp/servers/{mcpServer}/oauth2/client-metadata.json": {
+			"get": {
+				"produces": ["application/json"],
+				"tags": ["MCP"],
+				"summary": "Get MCP server OAuth2 client metadata document",
+				"operationId": "get-mcp-server-oauth2-client-metadata-document",
+				"parameters": [
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "MCP server config ID",
+						"name": "mcpServer",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK"
+					}
+				},
+				"x-apidocgen": {
+					"skip": true
+				}
+			}
+		},
 		"/api/experimental/organizations/{organization}/ai/model-prices/unpriced": {
 			"get": {
 				"description": "Returns one page of the requested models, for each provider, with token usage recorded without a price in the organization over the period, most unpriced tokens first. Only models without a price now are returned. A model has a price when it has a site-wide price for the provider's type or an organization price for the provider. Usage is attributed to the organization through its effective group.\nThe optional period_start and period_end query parameters bound the period and are interpreted as UTC. They must be provided together and span at most 31 days. When both are omitted, the current budget period is used.\nThe response carries the number of models over every page.\nUnknown query parameters are rejected.",
@@ -23151,8 +23177,8 @@
 					"type": "string"
 				},
 				"oauth2_client_registration": {
-					"description": "OAuth2ClientRegistration selects how Coder gets the OAuth2 client.\nWith \"dynamic\", Coder discovers the authorization server of URL and\nregisters a client (RFC 7591), so the client ID, client secret, auth\nURL, and token URL must be empty. With \"manual\", the client ID, auth\nURL, and token URL are required. When empty, Coder uses \"dynamic\" if\nthose three fields are empty, and \"manual\" otherwise.",
-					"enum": ["manual", "dynamic"],
+					"description": "OAuth2ClientRegistration selects how Coder gets the OAuth2 client.\n\"dynamic\" and \"metadata_document\" both register automatically, so\nthe client ID, client secret, auth URL, and token URL must be empty;\nthe stored value names the method Coder used. With \"manual\", the\nclient ID, auth URL, and token URL are required. When empty, Coder\nregisters automatically if those three fields are empty, and uses\n\"manual\" otherwise.",
+					"enum": ["manual", "dynamic", "metadata_document"],
 					"allOf": [
 						{
 							"$ref": "#/definitions/codersdk.MCPServerOAuth2ClientRegistration"
@@ -25956,10 +25982,11 @@
 		},
 		"codersdk.MCPServerOAuth2ClientRegistration": {
 			"type": "string",
-			"enum": ["manual", "dynamic"],
+			"enum": ["manual", "dynamic", "metadata_document"],
 			"x-enum-varnames": [
 				"MCPServerOAuth2ClientRegistrationManual",
-				"MCPServerOAuth2ClientRegistrationDynamic"
+				"MCPServerOAuth2ClientRegistrationDynamic",
+				"MCPServerOAuth2ClientRegistrationMetadataDocument"
 			]
 		},
 		"codersdk.MCPServerOAuth2DisconnectResponse": {
@@ -31398,8 +31425,8 @@
 					"type": "string"
 				},
 				"oauth2_client_registration": {
-					"description": "OAuth2ClientRegistration changes how Coder gets the OAuth2 client.\nWhen a request that sets the URL or an auth field omits it, Coder\nuses \"dynamic\" if the resulting config has no client ID, auth URL,\nand token URL, and keeps the stored value otherwise. Coder registers\na new client when the config becomes \"dynamic\" or when the URL of a\n\"dynamic\" config changes. A new client deletes the stored user\ntokens. A \"dynamic\" config ignores empty and unchanged values for\nthe client ID, client secret, auth URL, and token URL. Other values\nfail unless the request also sets \"manual\".",
-					"enum": ["manual", "dynamic"],
+					"description": "OAuth2ClientRegistration changes how Coder gets the OAuth2 client.\n\"dynamic\" and \"metadata_document\" both select automatic\nregistration; an automatic config keeps its stored method. When a\nrequest that sets the URL or an auth field omits it, Coder registers\nautomatically if the resulting config has no client ID, auth URL,\nand token URL, and keeps the stored value otherwise. A new client,\nmade when the config becomes automatic or the URL of an automatic\nconfig changes, deletes the stored user tokens. An automatic config\nignores empty and unchanged client fields; other values fail unless\nthe request also sets \"manual\".",
+					"enum": ["manual", "dynamic", "metadata_document"],
 					"allOf": [
 						{
 							"$ref": "#/definitions/codersdk.MCPServerOAuth2ClientRegistration"

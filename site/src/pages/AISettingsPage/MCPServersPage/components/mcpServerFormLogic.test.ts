@@ -114,16 +114,20 @@ describe("mcpServerFormLogic", () => {
 		},
 	);
 
-	it.each(["manual", "dynamic"] as const)(
-		"keeps the stored %s registration on update",
-		(mode) => {
+	it.each([
+		["manual", "manual"],
+		["dynamic", "dynamic"],
+		["metadata_document", "dynamic"],
+	] as const)(
+		"sends the stored %s registration as %s on update",
+		(stored, sent) => {
 			const values = buildInitialMCPServerFormValues({
 				...MockCoderMCPServer,
-				oauth2_client_registration: mode,
+				oauth2_client_registration: stored,
 			});
 			expect(
 				buildUpdateMCPServerConfigRequest(values).oauth2_client_registration,
-			).toBe(mode);
+			).toBe(sent);
 		},
 	);
 
