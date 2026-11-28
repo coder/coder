@@ -1358,6 +1358,13 @@ func (s *server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*proto.
 		return nil, xerrors.New("you don't own this job")
 	}
 	if job.CompletedAt.Valid {
+		// The job reaper can fail a job while its daemon is paused. When
+		// the daemon resumes, its apply can still change real resources.
+		// Keep the outcome that was already set, but save the Terraform
+		// state so the next build plans against the resources that exist.
+		if err := s.saveStateOfCompletedJob(ctx, job, failJob); err != nil {
+			return nil, xerrors.Errorf("save state of completed job: %w", err)
+		}
 		return nil, xerrors.Errorf("job already completed")
 	}
 	job.CompletedAt = sql.NullTime{
@@ -1541,6 +1548,46 @@ func (s *server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*proto.
 	}
 	s.jobFinished(jobID)
 	return &proto.Empty{}, nil
+}
+
+// saveStateOfCompletedJob writes the Terraform state that a FailJob request
+// carries for a workspace build job that is already completed. It writes only
+// while the build is the workspace's latest build: a newer build already
+// copied its starting state, so a write to an older build changes nothing.
+func (s *server) saveStateOfCompletedJob(ctx context.Context, job database.ProvisionerJob, failJob *proto.FailedJob) error {
+	jobType, ok := failJob.Type.(*proto.FailedJob_WorkspaceBuild_)
+	if !ok || jobType.WorkspaceBuild == nil || jobType.WorkspaceBuild.State == nil {
+		return nil
+	}
+	if job.Type != database.ProvisionerJobTypeWorkspaceBuild {
+		return xerrors.Errorf("job type %q sent workspace build state", job.Type)
+	}
+	var input WorkspaceProvisionJob
+	if err := json.Unmarshal(job.Input, &input); err != nil {
+		return xerrors.Errorf("unmarshal workspace provision input: %w", err)
+	}
+	return s.Database.InTx(func(db database.Store) error {
+		build, err := db.GetWorkspaceBuildByID(ctx, input.WorkspaceBuildID)
+		if err != nil {
+			return xerrors.Errorf("get workspace build: %w", err)
+		}
+		latest, err := db.GetLatestWorkspaceBuildByWorkspaceID(ctx, build.WorkspaceID)
+		if err != nil {
+			return xerrors.Errorf("get latest workspace build: %w", err)
+		}
+		if latest.ID != build.ID {
+			return nil
+		}
+		err = db.UpdateWorkspaceBuildProvisionerStateByID(ctx, database.UpdateWorkspaceBuildProvisionerStateByIDParams{
+			ID:               build.ID,
+			UpdatedAt:        s.timeNow(),
+			ProvisionerState: jobType.WorkspaceBuild.State,
+		})
+		if err != nil {
+			return xerrors.Errorf("update workspace build state: %w", err)
+		}
+		return nil
+	}, nil)
 }
 
 func (s *server) notifyWorkspaceBuildFailed(ctx context.Context, workspace database.Workspace, build database.WorkspaceBuild) {
