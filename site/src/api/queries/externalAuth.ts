@@ -2,10 +2,12 @@ import type { QueryClient, UseMutationOptions } from "react-query";
 import { API } from "#/api/api";
 import type { ExternalAuth } from "#/api/typesGenerated";
 
+export const externalAuthsKey = ["external-auth"];
+
 // Returns all configured external auths for a given user.
 export const externalAuths = () => {
 	return {
-		queryKey: ["external-auth"],
+		queryKey: externalAuthsKey,
 		queryFn: () => API.getUserExternalAuthProviders(),
 	};
 };
@@ -44,6 +46,12 @@ export const validateExternalAuth = (
 		mutationFn: API.getExternalAuthProvider,
 		onSuccess: (data, providerId) => {
 			queryClient.setQueryData(["external-auth", providerId], data);
+			// Only the list response carries validate_error, so refetch it to
+			// replace an error from before this validation.
+			void queryClient.invalidateQueries({
+				queryKey: externalAuthsKey,
+				exact: true,
+			});
 		},
 	};
 };
