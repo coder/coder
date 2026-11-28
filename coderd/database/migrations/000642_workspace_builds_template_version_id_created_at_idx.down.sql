@@ -1,0 +1,1 @@
+DROP INDEX IF EXISTS workspace_builds_template_version_id_created_at_idx;
