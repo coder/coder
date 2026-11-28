@@ -1265,6 +1265,7 @@ func insertRunning(t *testing.T, db database.Store, u database.User, org databas
 	})
 	require.NoError(t, err)
 	err = db.InsertWorkspaceBuild(context.Background(), database.InsertWorkspaceBuildParams{
+		DeadlineReason:    database.WorkspaceBuildDeadlineWriterReasonBuild,
 		ID:                uuid.New(),
 		WorkspaceID:       workspace.ID,
 		JobID:             job.ID,

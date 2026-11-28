@@ -9,6 +9,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 // ActivityBumpReason represents the reason for an activity bump.
@@ -19,14 +20,15 @@ const (
 	// by SSH or terminal activity reported via workspace stats.
 	ActivityBumpReasonWorkspaceStats ActivityBumpReason = "workspace_stats"
 	// ActivityBumpReasonChatHeartbeat indicates the bump was triggered
-	// by an AI chat heartbeat.
-	ActivityBumpReasonChatHeartbeat ActivityBumpReason = "chat_heartbeat"
+	// by an AI chat heartbeat. Its deadline source type has the same value.
+	ActivityBumpReasonChatHeartbeat = ActivityBumpReason(codersdk.WorkspaceBuildDeadlineSourceTypeChatHeartbeat)
 	// ActivityBumpReasonAppActivity indicates the bump was triggered
 	// by app or port-forward activity.
 	ActivityBumpReasonAppActivity ActivityBumpReason = "app_activity"
 	// ActivityBumpReasonChatWorkspaceUpload indicates the bump was
-	// triggered by a chat file upload streaming into the workspace.
-	ActivityBumpReasonChatWorkspaceUpload ActivityBumpReason = "chat_workspace_upload"
+	// triggered by a chat file upload streaming into the workspace. Its
+	// deadline source type has the same value.
+	ActivityBumpReasonChatWorkspaceUpload = ActivityBumpReason(codersdk.WorkspaceBuildDeadlineSourceTypeChatWorkspaceUpload)
 )
 
 // ActivityBumpWorkspace automatically bumps the workspace's auto-off timer
@@ -54,14 +56,38 @@ const (
 // A way to avoid this is to configure the max deadline to something that will not
 // span more than 1 day. This will force the workspace to restart and reset the deadline
 // each morning when it autostarts.
-func ActivityBumpWorkspace(ctx context.Context, log slog.Logger, db database.Store, workspaceID uuid.UUID, nextAutostart time.Time, reason ActivityBumpReason) {
+//
+// sources describe the activity and are recorded when the bump changes the
+// deadline. Invalid sources are logged and dropped so the bump still happens.
+func ActivityBumpWorkspace(ctx context.Context, log slog.Logger, db database.Store, workspaceID uuid.UUID, nextAutostart time.Time, reason ActivityBumpReason, sources ...database.WorkspaceBuildDeadlineSource) {
 	// We set a short timeout so if the app is under load, these
 	// low priority operations fail first.
 	ctx, cancel := context.WithTimeout(ctx, time.Second*15)
 	defer cancel()
+	unique := make(database.WorkspaceBuildDeadlineSources, 0, len(sources))
+	seen := make(map[database.WorkspaceBuildDeadlineSource]bool, len(sources))
+	for _, source := range sources {
+		if err := source.Validate(); err != nil {
+			log.Error(ctx, "dropped invalid deadline source", slog.Error(err),
+				slog.F("workspace_id", workspaceID),
+				slog.F("reason", reason),
+				slog.F("source", source),
+			)
+			continue
+		}
+		// The display name is presentation, not identity.
+		identity := source
+		identity.DisplayName = ""
+		if !seen[identity] {
+			seen[identity] = true
+			unique = append(unique, source)
+		}
+	}
 	err := db.ActivityBumpWorkspace(ctx, database.ActivityBumpWorkspaceParams{
-		NextAutostart: nextAutostart.UTC(),
-		WorkspaceID:   workspaceID,
+		DeadlineReason:  database.WorkspaceBuildDeadlineWriterReasonActivity,
+		DeadlineSources: unique,
+		NextAutostart:   nextAutostart.UTC(),
+		WorkspaceID:     workspaceID,
 	})
 	if err != nil {
 		if !xerrors.Is(err, context.Canceled) && !database.IsQueryCanceledError(err) {
@@ -69,6 +95,7 @@ func ActivityBumpWorkspace(ctx context.Context, log slog.Logger, db database.Sto
 			log.Error(ctx, "activity bump failed", slog.Error(err),
 				slog.F("workspace_id", workspaceID),
 				slog.F("reason", reason),
+				slog.F("sources", unique),
 			)
 		}
 		return
@@ -77,5 +104,6 @@ func ActivityBumpWorkspace(ctx context.Context, log slog.Logger, db database.Sto
 	log.Debug(ctx, "bumped deadline from activity",
 		slog.F("workspace_id", workspaceID),
 		slog.F("reason", reason),
+		slog.F("sources", unique),
 	)
 }

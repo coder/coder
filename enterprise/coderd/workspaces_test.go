@@ -3150,9 +3150,10 @@ func TestPrebuildActivityBump(t *testing.T) {
 
 	// Given: the claimed workspace has an expired Deadline
 	err = db.UpdateWorkspaceBuildDeadlineByID(ctx, database.UpdateWorkspaceBuildDeadlineByIDParams{
-		ID:        workspace.LatestBuild.ID,
-		Deadline:  deadline,
-		UpdatedAt: clock.Now(),
+		DeadlineReason: database.WorkspaceBuildDeadlineWriterReasonBuild,
+		ID:             workspace.LatestBuild.ID,
+		Deadline:       deadline,
+		UpdatedAt:      clock.Now(),
 	})
 	require.NoError(t, err)
 	workspace = coderdtest.MustWorkspace(t, client, claimedWorkspace.ID)

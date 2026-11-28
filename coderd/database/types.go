@@ -15,6 +15,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 // AuditOAuthConvertState is never stored in the database. It is stored in a cookie
@@ -190,6 +191,92 @@ func (a *AgentMetadataAggregate) Scan(src interface{}) error {
 
 func (a AgentMetadataAggregate) Value() (driver.Value, error) {
 	return json.Marshal(a)
+}
+
+// WorkspaceBuildDeadlineSource is the stored identity of observed activity.
+// Method and the identity fields depend on Type; see Validate.
+type WorkspaceBuildDeadlineSource struct {
+	Type        codersdk.WorkspaceBuildDeadlineSourceType `json:"type"`
+	Method      codersdk.ConnectionLogMethod              `json:"method,omitempty"`
+	AppName     string                                    `json:"app_name,omitempty"`
+	AppID       uuid.UUID                                 `json:"app_id,omitzero"`
+	AgentID     uuid.UUID                                 `json:"agent_id,omitzero"`
+	DisplayName string                                    `json:"display_name,omitempty"`
+}
+
+// Validate reports whether the source has exactly the fields its type and
+// method require:
+//   - app with ssh, reconnecting_pty, or port_forwarding: a normalized
+//     app_name whose SessionAppMethod is the method, and agent_id.
+//   - app with workspace_app: app_id, agent_id, and display_name.
+//   - connection: agent_id.
+//   - chat_heartbeat and chat_workspace_upload: no other fields.
+func (s WorkspaceBuildDeadlineSource) Validate() error {
+	allowed := WorkspaceBuildDeadlineSource{Type: s.Type, Method: s.Method}
+	switch s.Type {
+	case codersdk.WorkspaceBuildDeadlineSourceTypeApp:
+		switch s.Method {
+		case codersdk.ConnectionLogMethodSSH, codersdk.ConnectionLogMethodReconnectingPTY, codersdk.ConnectionLogMethodPortForwarding:
+			if s.AppName == "" || s.AppName != codersdk.NormalizeAppName(s.AppName) || s.AgentID == uuid.Nil {
+				return xerrors.Errorf("app source with method %q requires a normalized app name and agent ID", s.Method)
+			}
+			if want := codersdk.SessionAppMethod(s.AppName); s.Method != want {
+				return xerrors.Errorf("app %q has method %q, not %q", s.AppName, want, s.Method)
+			}
+			allowed.AppName, allowed.AgentID = s.AppName, s.AgentID
+		case codersdk.ConnectionLogMethodWorkspaceApp:
+			if s.AppID == uuid.Nil || s.AgentID == uuid.Nil || s.DisplayName == "" {
+				return xerrors.New("workspace app source requires app ID, agent ID, and display name")
+			}
+			allowed.AppID, allowed.AgentID, allowed.DisplayName = s.AppID, s.AgentID, s.DisplayName
+		default:
+			// No path reports app activity with tunnel or another method.
+			return xerrors.Errorf("app source has unsupported method %q", s.Method)
+		}
+	case codersdk.WorkspaceBuildDeadlineSourceTypeConnection:
+		if s.AgentID == uuid.Nil {
+			return xerrors.New("connection source requires agent ID")
+		}
+		allowed.Method = ""
+		allowed.AgentID = s.AgentID
+	case codersdk.WorkspaceBuildDeadlineSourceTypeChatHeartbeat, codersdk.WorkspaceBuildDeadlineSourceTypeChatWorkspaceUpload:
+		allowed.Method = ""
+	default:
+		return xerrors.Errorf("unknown deadline source type %q", s.Type)
+	}
+	if s != allowed {
+		return xerrors.Errorf("unexpected fields for deadline source type %q", s.Type)
+	}
+	return nil
+}
+
+// WorkspaceBuildDeadlineSources stores the activity in a deadline snapshot.
+type WorkspaceBuildDeadlineSources []WorkspaceBuildDeadlineSource
+
+func (s *WorkspaceBuildDeadlineSources) Scan(src interface{}) error {
+	switch v := src.(type) {
+	case string:
+		return json.Unmarshal([]byte(v), s)
+	case []byte:
+		return json.Unmarshal(v, s)
+	case json.RawMessage:
+		return json.Unmarshal(v, s)
+	}
+	return xerrors.Errorf("unexpected deadline sources type %T", src)
+}
+
+// Value rejects invalid sources as a backstop. Writers remove invalid sources
+// before the write so that the deadline still changes.
+func (s WorkspaceBuildDeadlineSources) Value() (driver.Value, error) {
+	for _, source := range s {
+		if err := source.Validate(); err != nil {
+			return nil, err
+		}
+	}
+	if s == nil {
+		s = WorkspaceBuildDeadlineSources{}
+	}
+	return json.Marshal(s)
 }
 
 type WorkspaceACL map[string]WorkspaceACLEntry

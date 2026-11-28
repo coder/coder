@@ -96,6 +96,24 @@ type WorkspaceBuild struct {
 	HasExternalAgent        *bool                `json:"has_external_agent,omitempty" wsrelated:"latest_build"`
 }
 
+// WorkspaceBuildDeadlineSourceType identifies activity that changed a deadline.
+type WorkspaceBuildDeadlineSourceType string
+
+const (
+	// WorkspaceBuildDeadlineSourceTypeApp is an app. Its method gives how it
+	// connects to the workspace, with the values of connection logs.
+	WorkspaceBuildDeadlineSourceTypeApp WorkspaceBuildDeadlineSourceType = "app"
+	// WorkspaceBuildDeadlineSourceTypeConnection is a connection that reported
+	// no app.
+	WorkspaceBuildDeadlineSourceTypeConnection WorkspaceBuildDeadlineSourceType = "connection"
+	// WorkspaceBuildDeadlineSourceTypeChatHeartbeat is a Coder Agents chat
+	// using the workspace.
+	WorkspaceBuildDeadlineSourceTypeChatHeartbeat WorkspaceBuildDeadlineSourceType = "chat_heartbeat"
+	// WorkspaceBuildDeadlineSourceTypeChatWorkspaceUpload is a Coder Agents
+	// chat uploading a file to the workspace.
+	WorkspaceBuildDeadlineSourceTypeChatWorkspaceUpload WorkspaceBuildDeadlineSourceType = "chat_workspace_upload"
+)
+
 // WorkspaceResource describes resources used to create a workspace, for instance:
 // containers, images, volumes.
 type WorkspaceResource struct {
