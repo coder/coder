@@ -178,6 +178,38 @@
 				}
 			}
 		},
+		"/api/experimental/chats/projects/pins/order": {
+			"put": {
+				"consumes": ["application/json"],
+				"tags": ["Chats"],
+				"summary": "Reorder pinned chat projects",
+				"operationId": "reorder-chat-project-pins",
+				"parameters": [
+					{
+						"description": "Reorder chat project pins request",
+						"name": "request",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/codersdk.ReorderChatProjectPinsRequest"
+						}
+					}
+				],
+				"responses": {
+					"204": {
+						"description": "No Content"
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"x-apidocgen": {
+					"skip": true
+				}
+			}
+		},
 		"/api/experimental/chats/{chat}/stream/desktop": {
 			"get": {
 				"description": "Raw binary WebSocket stream of the chat workspace desktop.\nExperimental: this endpoint is subject to change.",
@@ -1104,6 +1136,80 @@
 						"format": "uuid",
 						"description": "Chat project memory ID",
 						"name": "memory",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"204": {
+						"description": "No Content"
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"x-apidocgen": {
+					"skip": true
+				}
+			}
+		},
+		"/api/experimental/organizations/{organization}/chats/projects/{project}/pin": {
+			"put": {
+				"tags": ["Chats"],
+				"summary": "Pin chat project",
+				"operationId": "pin-chat-project",
+				"parameters": [
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "Organization ID",
+						"name": "organization",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "Chat project ID",
+						"name": "project",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"204": {
+						"description": "No Content"
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"x-apidocgen": {
+					"skip": true
+				}
+			},
+			"delete": {
+				"tags": ["Chats"],
+				"summary": "Unpin chat project",
+				"operationId": "unpin-chat-project",
+				"parameters": [
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "Organization ID",
+						"name": "organization",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "Chat project ID",
+						"name": "project",
 						"in": "path",
 						"required": true
 					}
@@ -3067,6 +3173,12 @@
 						"format": "uuid",
 						"description": "Only chats in this project.",
 						"name": "project_id",
+						"in": "query"
+					},
+					{
+						"type": "boolean",
+						"description": "Leave out the caller's own unpinned chats in projects the caller can use. Project pins do not change the result.",
+						"name": "exclude_own_project_chats",
 						"in": "query"
 					}
 				],
@@ -29134,6 +29246,19 @@
 					"type": "array",
 					"items": {
 						"$ref": "#/definitions/codersdk.WorkspaceProxy"
+					}
+				}
+			}
+		},
+		"codersdk.ReorderChatProjectPinsRequest": {
+			"type": "object",
+			"properties": {
+				"project_ids": {
+					"description": "ProjectIDs are the pinned projects in their new order. Pins that are\nleft out follow the listed ones in their current order, and IDs the\ncaller has not pinned are ignored.",
+					"type": "array",
+					"items": {
+						"type": "string",
+						"format": "uuid"
 					}
 				}
 			}

@@ -285,6 +285,15 @@ type ChatProjectDefaultTemplate struct {
 	Parameters map[string]string `json:"parameters,omitempty"`
 }
 
+// ReorderChatProjectPinsRequest sets the order of the caller's pinned chat
+// projects.
+type ReorderChatProjectPinsRequest struct {
+	// ProjectIDs are the pinned projects in their new order. Pins that are
+	// left out follow the listed ones in their current order, and IDs the
+	// caller has not pinned are ignored.
+	ProjectIDs []uuid.UUID `json:"project_ids" format:"uuid"`
+}
+
 // CreateChatProjectRequest creates a chat project in the organization named
 // by the route.
 type CreateChatProjectRequest struct {
@@ -2517,6 +2526,11 @@ type ListChatsOptions struct {
 	Source    ChatListSource
 	Labels    map[string]string
 	ProjectID *uuid.UUID
+	// ExcludeOwnProjectChats leaves out the caller's own unpinned chats in
+	// projects the caller can use. List those with ProjectID. Chats shared
+	// with the caller and chats in projects the caller can no longer use are
+	// still included.
+	ExcludeOwnProjectChats bool
 	Pagination
 }
 
@@ -2571,6 +2585,13 @@ func (c *Client) ListChats(ctx context.Context, opts *ListChatsOptions) ([]Chat,
 			reqOpts = append(reqOpts, func(r *http.Request) {
 				q := r.URL.Query()
 				q.Set("project_id", opts.ProjectID.String())
+				r.URL.RawQuery = q.Encode()
+			})
+		}
+		if opts.ExcludeOwnProjectChats {
+			reqOpts = append(reqOpts, func(r *http.Request) {
+				q := r.URL.Query()
+				q.Set("exclude_own_project_chats", "true")
 				r.URL.RawQuery = q.Encode()
 			})
 		}
@@ -2670,6 +2691,22 @@ func (c *ExperimentalClient) DeleteChatProject(ctx context.Context, organization
 		return ReadBodyAsError(res)
 	}
 	return nil
+}
+
+// PinChatProject pins a chat project at the end of the caller's pins. A
+// project that is already pinned keeps its place.
+func (c *ExperimentalClient) PinChatProject(ctx context.Context, organizationID, projectID uuid.UUID) error {
+	return requestNoContent(ctx, c.Client, http.MethodPut, chatProjectPath(organizationID, projectID)+"/pin", nil)
+}
+
+// ReorderChatProjectPins sets the order of the caller's pinned chat projects.
+func (c *ExperimentalClient) ReorderChatProjectPins(ctx context.Context, req ReorderChatProjectPinsRequest) error {
+	return requestNoContent(ctx, c.Client, http.MethodPut, "/api/experimental/chats/projects/pins/order", req)
+}
+
+// UnpinChatProject unpins a chat project for the caller.
+func (c *ExperimentalClient) UnpinChatProject(ctx context.Context, organizationID, projectID uuid.UUID) error {
+	return requestNoContent(ctx, c.Client, http.MethodDelete, chatProjectPath(organizationID, projectID)+"/pin", nil)
 }
 
 // ChatProjectACL returns who a chat project is shared with.

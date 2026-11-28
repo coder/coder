@@ -1958,6 +1958,67 @@ func AllChatPlanModeValues() []ChatPlanMode {
 	}
 }
 
+type ChatProjectPinSource string
+
+const (
+	ChatProjectPinSourceMigration ChatProjectPinSource = "migration"
+	ChatProjectPinSourceDefault   ChatProjectPinSource = "default"
+	ChatProjectPinSourceUser      ChatProjectPinSource = "user"
+)
+
+func (e *ChatProjectPinSource) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ChatProjectPinSource(s)
+	case string:
+		*e = ChatProjectPinSource(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ChatProjectPinSource: %T", src)
+	}
+	return nil
+}
+
+type NullChatProjectPinSource struct {
+	ChatProjectPinSource ChatProjectPinSource `json:"chat_project_pin_source"`
+	Valid                bool                 `json:"valid"` // Valid is true if ChatProjectPinSource is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullChatProjectPinSource) Scan(value interface{}) error {
+	if value == nil {
+		ns.ChatProjectPinSource, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ChatProjectPinSource.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullChatProjectPinSource) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ChatProjectPinSource), nil
+}
+
+func (e ChatProjectPinSource) Valid() bool {
+	switch e {
+	case ChatProjectPinSourceMigration,
+		ChatProjectPinSourceDefault,
+		ChatProjectPinSourceUser:
+		return true
+	}
+	return false
+}
+
+func AllChatProjectPinSourceValues() []ChatProjectPinSource {
+	return []ChatProjectPinSource{
+		ChatProjectPinSourceMigration,
+		ChatProjectPinSourceDefault,
+		ChatProjectPinSourceUser,
+	}
+}
+
 type ChatReasoningEffort string
 
 const (
@@ -5677,6 +5738,20 @@ type ChatProjectMemory struct {
 	Body           string    `db:"body" json:"body"`
 	CreatedBy      uuid.UUID `db:"created_by" json:"created_by"`
 	CreatedAt      time.Time `db:"created_at" json:"created_at"`
+}
+
+// Per-user pinned chat projects. Pins can outlive project access, so readers must check access.
+type ChatProjectPin struct {
+	UserID    uuid.UUID            `db:"user_id" json:"user_id"`
+	ProjectID uuid.UUID            `db:"project_id" json:"project_id"`
+	PinOrder  int32                `db:"pin_order" json:"pin_order"`
+	Source    ChatProjectPinSource `db:"source" json:"source"`
+	CreatedAt time.Time            `db:"created_at" json:"created_at"`
+}
+
+type ChatProjectReadGrantMember struct {
+	ProjectID uuid.UUID `db:"project_id" json:"project_id"`
+	UserID    uuid.UUID `db:"user_id" json:"user_id"`
 }
 
 // Templates attached to chat projects. An attachment never grants access to its template; every reader is checked against the template itself.

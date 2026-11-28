@@ -265,6 +265,7 @@ sql:
           workspace_group_acl: WorkspaceGroupACL
           user_acl_display_info: UserACLDisplayInfo
           group_acl_display_info: GroupACLDisplayInfo
+          acl_enabled: ACLEnabled
           troubleshooting_url: TroubleshootingURL
           default_ttl: DefaultTTL
           motd_file: MOTDFile
@@ -273,6 +274,7 @@ sql:
           time_til_dormant_autodelete: TimeTilDormantAutoDelete
           eof: EOF
           template_ids: TemplateIDs
+          project_ids: ProjectIDs
           active_user_ids: ActiveUserIDs
           display_app_ssh_helper: DisplayAppSSHHelper
           oauth2_provider_app: OAuth2ProviderApp

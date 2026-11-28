@@ -1832,6 +1832,16 @@ func (q *querier) authorizeChatProjectConfig(ctx context.Context, action policy.
 	return q.authorizeContext(ctx, action, project.RBACObject())
 }
 
+// authorizeChatProjectPin authorizes a change to a user's pin on a project.
+// A pin is that user's personal preference, so the write is authorized on
+// the user, and the project only needs to be readable.
+func (q *querier) authorizeChatProjectPin(ctx context.Context, userID, projectID uuid.UUID) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdatePersonal, rbac.ResourceUserObject(userID)); err != nil {
+		return err
+	}
+	return q.authorizeChatProjectConfig(ctx, policy.ActionRead, projectID)
+}
+
 func (q *querier) authorizeChatProjectMemory(ctx context.Context, action policy.Action, memory database.ChatProjectMemory) error {
 	project, err := q.db.GetChatProjectByID(ctx, memory.ProjectID)
 	if err != nil {
@@ -7690,6 +7700,13 @@ func (q *querier) PinChatByID(ctx context.Context, id uuid.UUID) error {
 	return q.db.PinChatByID(ctx, id)
 }
 
+func (q *querier) PinChatProject(ctx context.Context, arg database.PinChatProjectParams) error {
+	if err := q.authorizeChatProjectPin(ctx, arg.UserID, arg.ProjectID); err != nil {
+		return err
+	}
+	return q.db.PinChatProject(ctx, arg)
+}
+
 func (q *querier) ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(ctx context.Context, templateID uuid.UUID) error {
 	template, err := q.db.GetTemplateByID(ctx, templateID)
 	if err != nil {
@@ -7737,6 +7754,16 @@ func (q *querier) RenewChatHeartbeats(ctx context.Context, arg database.RenewCha
 		return nil, err
 	}
 	return q.db.RenewChatHeartbeats(ctx, arg)
+}
+
+// ReorderChatProjectPins changes only the order of the user's own pins and
+// reveals nothing about the listed projects, so it is authorized on the user
+// alone.
+func (q *querier) ReorderChatProjectPins(ctx context.Context, arg database.ReorderChatProjectPinsParams) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdatePersonal, rbac.ResourceUserObject(arg.UserID)); err != nil {
+		return err
+	}
+	return q.db.ReorderChatProjectPins(ctx, arg)
 }
 
 func (q *querier) RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) error {
@@ -7877,6 +7904,13 @@ func (q *querier) UnpinChatByID(ctx context.Context, id uuid.UUID) error {
 		return err
 	}
 	return q.db.UnpinChatByID(ctx, id)
+}
+
+func (q *querier) UnpinChatProject(ctx context.Context, arg database.UnpinChatProjectParams) error {
+	if err := q.authorizeChatProjectPin(ctx, arg.UserID, arg.ProjectID); err != nil {
+		return err
+	}
+	return q.db.UnpinChatProject(ctx, arg)
 }
 
 func (q *querier) UnsetDefaultChatModelConfigs(ctx context.Context, organizationID uuid.UUID) error {

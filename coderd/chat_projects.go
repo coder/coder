@@ -122,8 +122,9 @@ func (api *API) postChatProject(rw http.ResponseWriter, r *http.Request) {
 	var project database.ChatProject
 	err = api.Database.InTx(func(tx database.Store) error {
 		// The lock serializes a user's creates so concurrent requests cannot
-		// both observe room under the cap.
-		if err := tx.AcquireLock(ctx, database.GenLockID("chat-projects-owner:"+apiKey.UserID.String())); err != nil {
+		// both observe room under the cap, and orders the creator's pin with
+		// their other pin writes.
+		if err := tx.AcquireLock(ctx, chatProjectsOwnerLockID(apiKey.UserID)); err != nil {
 			return xerrors.Errorf("lock chat projects: %w", err)
 		}
 		// The count spans the user's projects in every organization, and the
@@ -152,15 +153,22 @@ func (api *API) postChatProject(rw http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			return err
 		}
-		if len(req.TemplateIDs) == 0 {
-			return nil
+		if len(req.TemplateIDs) > 0 {
+			_, err = tx.InsertChatProjectTemplates(ctx, database.InsertChatProjectTemplatesParams{
+				ProjectID:   project.ID,
+				TemplateIDs: req.TemplateIDs,
+				CreatedBy:   apiKey.UserID,
+			})
+			if err != nil {
+				return err
+			}
 		}
-		_, err = tx.InsertChatProjectTemplates(ctx, database.InsertChatProjectTemplatesParams{
-			ProjectID:   project.ID,
-			TemplateIDs: req.TemplateIDs,
-			CreatedBy:   apiKey.UserID,
+		// New projects start pinned for their creator.
+		return tx.PinChatProject(ctx, database.PinChatProjectParams{
+			UserID:    apiKey.UserID,
+			ProjectID: project.ID,
+			Source:    database.ChatProjectPinSourceDefault,
 		})
-		return err
 	}, nil)
 	if errors.Is(err, errChatProjectLimit) {
 		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{

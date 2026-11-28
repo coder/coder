@@ -6965,6 +6965,13 @@ export interface ListChatsOptions extends Pagination {
 	readonly Source: ChatListSource;
 	readonly Labels: Record<string, string>;
 	readonly ProjectID: string | null;
+	/**
+	 * ExcludeOwnProjectChats leaves out the caller's own unpinned chats in
+	 * projects the caller can use. List those with ProjectID. Chats shared
+	 * with the caller and chats in projects the caller can no longer use are
+	 * still included.
+	 */
+	readonly ExcludeOwnProjectChats: boolean;
 }
 
 // From codersdk/inboxnotification.go
@@ -9745,6 +9752,20 @@ export type RegionTypes = Region | WorkspaceProxy;
 // From codersdk/workspaceproxy.go
 export interface RegionsResponse<R extends RegionTypes> {
 	readonly regions: readonly R[];
+}
+
+// From codersdk/chats.go
+/**
+ * ReorderChatProjectPinsRequest sets the order of the caller's pinned chat
+ * projects.
+ */
+export interface ReorderChatProjectPinsRequest {
+	/**
+	 * ProjectIDs are the pinned projects in their new order. Pins that are
+	 * left out follow the listed ones in their current order, and IDs the
+	 * caller has not pinned are ignored.
+	 */
+	readonly project_ids: readonly string[];
 }
 
 // From codersdk/replicas.go

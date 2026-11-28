@@ -33,27 +33,7 @@ FOR UPDATE;
 -- authorize each row.
 SELECT chat_projects.*
 FROM chat_projects
-WHERE chat_projects.owner_id = @user_id::uuid
-    OR (
-        (
-            chat_projects.user_acl ? (@user_id::uuid)::text
-            OR chat_projects.group_acl ?| ARRAY(
-                SELECT group_members.group_id::text
-                FROM group_members
-                WHERE group_members.user_id = @user_id::uuid
-                UNION ALL
-                SELECT organization_members.organization_id::text
-                FROM organization_members
-                WHERE organization_members.user_id = @user_id::uuid
-            )
-        )
-        AND EXISTS (
-            SELECT 1
-            FROM organization_members
-            WHERE organization_members.user_id = @user_id::uuid
-                AND organization_members.organization_id = chat_projects.organization_id
-        )
-    )
+WHERE chat_projects.id IN (SELECT project_id FROM chat_project_ids_for_user(@user_id::uuid, true))
 ORDER BY lower(chat_projects.name), chat_projects.id;
 
 -- name: IsChatProjectUsableByUserID :one

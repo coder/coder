@@ -1545,6 +1545,10 @@ type sqlcQuerier interface {
 	// pin/unpin/reorder operation's ROW_NUMBER() self-heals the
 	// sequence, so this is acceptable.
 	PinChatByID(ctx context.Context, id uuid.UUID) error
+	// Pins a project at the end of the user's list. An existing pin keeps its
+	// place. Callers must hold the per-user pin lock, or two new pins could
+	// take the same position.
+	PinChatProject(ctx context.Context, arg PinChatProjectParams) error
 	ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(ctx context.Context, templateID uuid.UUID) error
 	RegisterWorkspaceProxy(ctx context.Context, arg RegisterWorkspaceProxyParams) (WorkspaceProxy, error)
 	ReindexStaleChatMessagesSearchTsv(ctx context.Context, batchSize int32) (int64, error)
@@ -1559,6 +1563,12 @@ type sqlcQuerier interface {
 	// granted, so a lease that a committed admission counted as stale cannot
 	// be renewed afterwards.
 	RenewChatHeartbeats(ctx context.Context, arg RenewChatHeartbeatsParams) ([]RenewChatHeartbeatsRow, error)
+	// Puts the user's pins on project_ids in that order, followed by the user's
+	// other pins in their current order. IDs the user has not pinned are
+	// ignored. The other pins include those on projects the user can no longer
+	// see, so no caller has to work out which pins are hidden. Callers must hold
+	// the per-user pin lock, or overlapping reorders could deadlock.
+	ReorderChatProjectPins(ctx context.Context, arg ReorderChatProjectPinsParams) error
 	RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) error
 	// Note that this selects from the CTE, not the original table. The CTE is named
 	// the same as the original table to trick sqlc into reusing the existing struct
@@ -1614,6 +1624,10 @@ type sqlcQuerier interface {
 	// re-authenticate under a new OIDC provider.
 	UnlinkOIDCUsersByIssuerMismatch(ctx context.Context, expectedPrefix string) (int64, error)
 	UnpinChatByID(ctx context.Context, id uuid.UUID) error
+	// Deletes a pin. Unpinning a project that is not pinned changes nothing.
+	// The remaining pins keep their order, with a gap in pin_order until the
+	// next reorder.
+	UnpinChatProject(ctx context.Context, arg UnpinChatProjectParams) error
 	UnsetDefaultChatModelConfigs(ctx context.Context, organizationID uuid.UUID) error
 	UpdateAIBridgeInterceptionEnded(ctx context.Context, arg UpdateAIBridgeInterceptionEndedParams) (AIBridgeInterception, error)
 	// Records heartbeat liveness for an active Gateway DRPC session. The database sets the
