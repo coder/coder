@@ -131,8 +131,9 @@ type Resolver struct {
 // ScanRoot describes a single directory or file the resolver
 // should examine.
 type ScanRoot struct {
-	// Path is the absolute path. Symlinks should already be
-	// resolved.
+	// Path is the absolute path. For a single-file root, callers
+	// must not resolve symlinks: the resolver needs the link path
+	// to enforce the symlink boundary.
 	Path string
 	// UserSource is the canonical source path the user
 	// declared, when this root came from a user-added Source.
@@ -295,22 +296,30 @@ func deduplicateSkills(resources []Resource) []Resource {
 // top-level instruction files and .mcp.json plus skills from the
 // fixed container locations under it. The walk goes no deeper.
 func (r *Resolver) discoverIn(root ScanRoot, out *[]Resource, seenID map[string]int) {
-	info, err := os.Stat(root.Path)
+	// Stat follows symlinks and Windows junctions, so a linked
+	// directory is scanned as a directory root.
+	if info, err := os.Stat(root.Path); err == nil && info.IsDir() {
+		r.discoverTopLevelFiles(root, out, seenID)
+		for _, container := range skillContainersFor(root.Path) {
+			r.emitSkillsFromContainer(container, root, out, seenID)
+		}
+		return
+	}
+	// Lstat (not Stat) so a symlinked single-file root keeps its
+	// symlink mode and resolveReadTarget enforces the boundary.
+	// Broken links reach here too and are reported as unreadable.
+	info, err := os.Lstat(root.Path)
 	if err != nil {
 		// Missing roots silently fall through. The user either
 		// added a path that does not exist yet or removed it
 		// later; the watcher surfaces re-creation as a change.
 		return
 	}
-	if !info.IsDir() {
-		if res, ok := r.classifyFile(root.Path, root.Path, info, root.UserSource); ok {
-			appendResource(out, seenID, res)
-		}
-		return
-	}
-	r.discoverTopLevelFiles(root, out, seenID)
-	for _, container := range skillContainersFor(root.Path) {
-		r.emitSkillsFromContainer(container, root, out, seenID)
+	// A single-file root is bounded by its parent directory, so a
+	// symlinked AGENTS.md may point at a sibling but not at a file
+	// elsewhere on disk.
+	if res, ok := r.classifyFile(filepath.Dir(root.Path), root.Path, info, root.UserSource); ok {
+		appendResource(out, seenID, res)
 	}
 }
 
@@ -418,7 +427,8 @@ func resolveReadTarget(path string, info fs.FileInfo, scanRoot string) (readPath
 // classifyFile inspects a single-file scan root and produces a
 // Resource when the basename matches a recognized convention.
 // Directory roots are handled by discoverIn; this is reached only
-// for sources that point directly at a file.
+// for sources that point directly at a file. scanRoot is the
+// boundary for symlink targets.
 func (r *Resolver) classifyFile(scanRoot, path string, info fs.FileInfo, userSource string) (Resource, bool) {
 	name := info.Name()
 	switch {
