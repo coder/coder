@@ -317,7 +317,8 @@ CREATE TYPE api_key_scope AS ENUM (
     'chat_automation:create',
     'chat_automation:read',
     'chat_automation:update',
-    'chat_automation:delete'
+    'chat_automation:delete',
+    'chat_automation:run'
 );
 
 CREATE TYPE app_sharing_level AS ENUM (
@@ -2165,6 +2166,7 @@ CREATE TABLE chat_automations (
     last_run_chat_id uuid,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    last_run_unaccepted_count integer DEFAULT 0 NOT NULL,
     CONSTRAINT chat_automations_last_run_shape CHECK (((last_run_at IS NULL) = (last_run_outcome IS NULL))),
     CONSTRAINT chat_automations_name_check CHECK (((char_length(name) >= 1) AND (char_length(name) <= 128))),
     CONSTRAINT chat_automations_project_target_mode CHECK (((project_id IS NULL) OR (target_mode = 'new_chat'::chat_automation_target_mode))),
@@ -2183,6 +2185,8 @@ COMMENT ON COLUMN chat_automations.project_id IS 'Project for the chats a new_ch
 COMMENT ON COLUMN chat_automations.schedule_next_run_at IS 'The next occurrence to run. NULL when none is pending.';
 
 COMMENT ON COLUMN chat_automations.last_run_chat_id IS 'Chat of the latest run. No foreign key: the chat can be deleted.';
+
+COMMENT ON COLUMN chat_automations.last_run_unaccepted_count IS 'Skipped and refused runs since the last accepted run.';
 
 CREATE TABLE chat_context_resources (
     chat_id uuid NOT NULL,
@@ -2353,7 +2357,8 @@ CREATE TABLE chat_messages (
     reasoning_effort chat_reasoning_effort,
     search_tsv tsvector,
     search_tsv_config chat_message_search_tsv_config,
-    queued_message_id bigint
+    queued_message_id bigint,
+    automation_id uuid
 );
 
 COMMENT ON COLUMN chat_messages.reasoning_effort IS 'Stores the selected effort for the turn triggered by this message.';
@@ -2363,6 +2368,8 @@ COMMENT ON COLUMN chat_messages.search_tsv IS 'Used for full text search. NULL i
 COMMENT ON COLUMN chat_messages.search_tsv_config IS 'Text search config that produced search_tsv. NULL means an unknown config (a pre-migration vector or one written by an old binary); the dbpurge sweep re-vectorizes such rows.';
 
 COMMENT ON COLUMN chat_messages.queued_message_id IS 'ID of the chat_queued_messages row this message was promoted from. NULL when the message was not promoted from the queue, or when a version that did not record the link wrote it. Not a foreign key: promotion deletes the queued row in the same transaction.';
+
+COMMENT ON COLUMN chat_messages.automation_id IS 'Chat automation whose run sent this message. Not a foreign key: it stays after the automation is deleted.';
 
 CREATE SEQUENCE chat_messages_id_seq
     START WITH 1
@@ -2613,6 +2620,7 @@ CREATE TABLE chats (
     project_id uuid,
     title_source chat_title_source DEFAULT 'fallback'::chat_title_source NOT NULL,
     title_updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    automation_id uuid,
     CONSTRAINT chat_acl_only_on_root_chats CHECK ((((parent_chat_id IS NULL) AND (root_chat_id IS NULL)) OR ((user_acl = '{}'::jsonb) AND (group_acl = '{}'::jsonb)))),
     CONSTRAINT chat_group_acl_not_null_jsonb CHECK (((group_acl IS NOT NULL) AND (jsonb_typeof(group_acl) = 'object'::text))),
     CONSTRAINT chat_user_acl_not_null_jsonb CHECK (((user_acl IS NOT NULL) AND (jsonb_typeof(user_acl) = 'object'::text))),
@@ -2643,6 +2651,8 @@ COMMENT ON COLUMN chats.project_id IS 'Optional project that groups a root chat 
 COMMENT ON COLUMN chats.title_source IS 'Rows from before this column existed are fallback regardless of who set their title.';
 
 COMMENT ON COLUMN chats.title_updated_at IS 'Orders title events, because title writes do not change updated_at. Rows from before this column existed have the migration time.';
+
+COMMENT ON COLUMN chats.automation_id IS 'Chat automation whose run created this chat. Not a foreign key: it stays after the automation is deleted.';
 
 CREATE TABLE users (
     id uuid NOT NULL,
@@ -2745,7 +2755,8 @@ CREATE VIEW chats_expanded AS
     c.context_error,
     c.compaction_requested_at,
     c.title_source,
-    c.title_updated_at
+    c.title_updated_at,
+    c.automation_id
    FROM ((chats c
      LEFT JOIN chats root ON ((root.id = COALESCE(c.root_chat_id, c.parent_chat_id))))
      JOIN visible_users owner ON ((owner.id = c.owner_id)));
@@ -5227,6 +5238,8 @@ CREATE INDEX chat_automations_target_chat_id_idx ON chat_automations USING btree
 CREATE INDEX chat_heartbeats_heartbeat_at_idx ON chat_heartbeats USING btree (heartbeat_at);
 
 CREATE UNIQUE INDEX chat_queued_messages_one_editing_per_chat ON chat_queued_messages USING btree (chat_id) WHERE (editing_since IS NOT NULL);
+
+CREATE INDEX chats_automation_id_idx ON chats USING btree (automation_id) WHERE (automation_id IS NOT NULL);
 
 CREATE INDEX idx_agent_stats_created_at ON workspace_agent_stats USING btree (created_at);
 

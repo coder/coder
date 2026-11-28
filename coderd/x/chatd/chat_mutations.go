@@ -104,6 +104,12 @@ func (p *Server) SendMessage(
 		}
 		promptResult, err := p.hooks.Trigger(ctx, chathooks.ChatFor(chat, &turnID), promptMessage, agenthooks.EventUserPromptSubmit, dispatch.CapacityClassAdmission)
 		if err != nil {
+			// An automation run records the failure as its outcome
+			// instead of failing the chat, so a run that turns out to be
+			// stale leaves the chat as it was.
+			if opts.AutomationID.Valid {
+				return SendMessageResult{}, chathooks.UserPromptDenial(err)
+			}
 			return SendMessageResult{}, p.handleUserPromptDispatchError(ctx, opts.ChatID, chathooks.UserPromptDenial(err))
 		}
 		contentParts, _, err = chathooks.ComposeUserPromptContent(contentParts, promptResult)
@@ -122,6 +128,11 @@ func (p *Server) SendMessage(
 		promotedQueuedAt time.Time
 	)
 	refreshed, err := p.updateChat(ctx, opts.ChatID, func(tx *chatstate.Tx, store database.Store, snapshot *chatstate.ChatSnapshot) error {
+		if opts.BeforeSend != nil {
+			if err := opts.BeforeSend(store, snapshot); err != nil {
+				return err
+			}
+		}
 		lockedChat := snapshot.Chat
 		if lockedChat.Archived {
 			return ErrChatArchived
@@ -179,6 +190,7 @@ func (p *Server) SendMessage(
 		// Queue capacity is enforced inside tx.SendMessage; this
 		// wrapper only propagates the typed error.
 		message := userMessage(content, modelConfigID, messageCreatedBy, opts.ReasoningEffort)
+		message.AutomationID = opts.AutomationID
 		sendResult, err := tx.SendMessage(chatstate.SendMessageInput{
 			// The writes above may have made the snapshot stale, so the
 			// transition reads the chat itself.

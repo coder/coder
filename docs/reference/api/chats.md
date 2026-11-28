@@ -70,6 +70,7 @@ curl -X GET http://coder-server:8080/api/v2/chats \
   {
     "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
     "archived": true,
+    "automation_id": "64fb5f73-6415-4f56-8e9e-ca06539f09ac",
     "build_id": "bfb1f3fa-bf7b-43a5-9e0b-26cc050e44cb",
     "children": [
       {}
@@ -236,6 +237,7 @@ Status Code **200**
 | `[array item]`             | array                                                                              | false    |              |                                                                                                                                                                                                                                                                            |
 | `» agent_id`               | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
 | `» archived`               | boolean                                                                            | false    |              |                                                                                                                                                                                                                                                                            |
+| `» automation_id`          | string(uuid)                                                                       | false    |              | Automation ID is the chat automation whose run created this chat.                                                                                                                                                                                                          |
 | `» build_id`               | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
 | `» children`               | [codersdk.Chat](schemas.md#codersdkchat)                                           | false    |              | Children holds child (subagent) chats nested under this root chat. Always initialized to an empty slice so the JSON field is present as []. Child chats cannot create their own subagents, so nesting depth is capped at 1 and this slice is always empty for child chats. |
 | `» client_type`            | [codersdk.ChatClientType](schemas.md#codersdkchatclienttype)                       | false    |              |                                                                                                                                                                                                                                                                            |
@@ -461,11 +463,13 @@ curl -X POST http://coder-server:8080/api/v2/chats \
 {
   "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
   "archived": true,
+  "automation_id": "64fb5f73-6415-4f56-8e9e-ca06539f09ac",
   "build_id": "bfb1f3fa-bf7b-43a5-9e0b-26cc050e44cb",
   "children": [
     {
       "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
       "archived": true,
+      "automation_id": "64fb5f73-6415-4f56-8e9e-ca06539f09ac",
       "build_id": "bfb1f3fa-bf7b-43a5-9e0b-26cc050e44cb",
       "children": [],
       "client_type": "ui",
@@ -1616,6 +1620,7 @@ Upgrades to a WebSocket and sends one event per message. The server closes the c
   "chat": {
     "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
     "archived": true,
+    "automation_id": "64fb5f73-6415-4f56-8e9e-ca06539f09ac",
     "build_id": "bfb1f3fa-bf7b-43a5-9e0b-26cc050e44cb",
     "children": [
       {}
@@ -1810,11 +1815,13 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat} \
 {
   "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
   "archived": true,
+  "automation_id": "64fb5f73-6415-4f56-8e9e-ca06539f09ac",
   "build_id": "bfb1f3fa-bf7b-43a5-9e0b-26cc050e44cb",
   "children": [
     {
       "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
       "archived": true,
+      "automation_id": "64fb5f73-6415-4f56-8e9e-ca06539f09ac",
       "build_id": "bfb1f3fa-bf7b-43a5-9e0b-26cc050e44cb",
       "children": [],
       "client_type": "ui",
@@ -2248,11 +2255,13 @@ curl -X PUT http://coder-server:8080/api/v2/chats/{chat}/context \
 {
   "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
   "archived": true,
+  "automation_id": "64fb5f73-6415-4f56-8e9e-ca06539f09ac",
   "build_id": "bfb1f3fa-bf7b-43a5-9e0b-26cc050e44cb",
   "children": [
     {
       "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
       "archived": true,
+      "automation_id": "64fb5f73-6415-4f56-8e9e-ca06539f09ac",
       "build_id": "bfb1f3fa-bf7b-43a5-9e0b-26cc050e44cb",
       "children": [],
       "client_type": "ui",
@@ -2678,11 +2687,13 @@ If the chat has nothing to interrupt, for example because its turn already ended
 {
   "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
   "archived": true,
+  "automation_id": "64fb5f73-6415-4f56-8e9e-ca06539f09ac",
   "build_id": "bfb1f3fa-bf7b-43a5-9e0b-26cc050e44cb",
   "children": [
     {
       "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
       "archived": true,
+      "automation_id": "64fb5f73-6415-4f56-8e9e-ca06539f09ac",
       "build_id": "bfb1f3fa-bf7b-43a5-9e0b-26cc050e44cb",
       "children": [],
       "client_type": "ui",
@@ -3015,6 +3026,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/messages \
   "has_more": true,
   "messages": [
     {
+      "automation_id": "64fb5f73-6415-4f56-8e9e-ca06539f09ac",
       "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
       "content": [
         {
@@ -3243,6 +3255,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
 ```json
 {
   "message": {
+    "automation_id": "64fb5f73-6415-4f56-8e9e-ca06539f09ac",
     "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
     "content": [
       {
@@ -3316,6 +3329,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
   },
   "messages": [
     {
+      "automation_id": "64fb5f73-6415-4f56-8e9e-ca06539f09ac",
       "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
       "content": [
         {
@@ -3528,6 +3542,7 @@ curl -X PATCH http://coder-server:8080/api/v2/chats/{chat}/messages/{message} \
     0
   ],
   "message": {
+    "automation_id": "64fb5f73-6415-4f56-8e9e-ca06539f09ac",
     "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
     "content": [
       {
@@ -3601,6 +3616,7 @@ curl -X PATCH http://coder-server:8080/api/v2/chats/{chat}/messages/{message} \
   },
   "messages": [
     {
+      "automation_id": "64fb5f73-6415-4f56-8e9e-ca06539f09ac",
       "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
       "content": [
         {
@@ -3892,11 +3908,13 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/reconcile-invalid \
 {
   "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
   "archived": true,
+  "automation_id": "64fb5f73-6415-4f56-8e9e-ca06539f09ac",
   "build_id": "bfb1f3fa-bf7b-43a5-9e0b-26cc050e44cb",
   "children": [
     {
       "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
       "archived": true,
+      "automation_id": "64fb5f73-6415-4f56-8e9e-ca06539f09ac",
       "build_id": "bfb1f3fa-bf7b-43a5-9e0b-26cc050e44cb",
       "children": [],
       "client_type": "ui",
@@ -4294,6 +4312,7 @@ When the server can't subscribe to the chat or read it, the server returns `500 
       "from_message_id": 0
     },
     "message": {
+      "automation_id": "64fb5f73-6415-4f56-8e9e-ca06539f09ac",
       "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
       "content": [
         {
@@ -4535,6 +4554,7 @@ Status Code **101**
 | `» history_reset`                  | [codersdk.ChatStreamHistoryReset](schemas.md#codersdkchatstreamhistoryreset)     | false    |              | History reset is set on history_reset events of streams opened with a snapshot_version.                                                                                                                                                                                                                                                                                                                    |
 | `»» from_message_id`               | integer                                                                          | false    |              | From message ID is the ID of a message that was edited. The edit deleted that message and every message after it. When managing history state, delete every message with this ID or higher. The messages that follow were written by the edit or after it and should be kept.                                                                                                                              |
 | `» message`                        | [codersdk.ChatMessage](schemas.md#codersdkchatmessage)                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»» automation_id`                 | string(uuid)                                                                     | false    |              | Automation ID is the chat automation whose run sent this message.                                                                                                                                                                                                                                                                                                                                          |
 | `»» chat_id`                       | string(uuid)                                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»» content`                       | array                                                                            | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»»» args`                         | object                                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |

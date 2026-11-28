@@ -34,7 +34,7 @@ var AuditActionMap = map[string][]codersdk.AuditAction{
 	"AuditableGroupAIBudget":           {codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"AuditableUserAIBudgetOverride":    {codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"Chat":                             {codersdk.AuditActionCreate, codersdk.AuditActionWrite}, // chats get 'archived' by users, not deleted.
-	"ChatAutomation":                   {codersdk.AuditActionDelete},
+	"ChatAutomation":                   {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete, codersdk.AuditActionStart},
 	"ChatProject":                      {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"ChatProjectMemory":                {codersdk.AuditActionCreate, codersdk.AuditActionDelete},
 	"AuditableChatProjectInstructions": {codersdk.AuditActionWrite, codersdk.AuditActionDelete},
@@ -472,6 +472,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"title":                       ActionSecret, // May contain sensitive content.
 		"title_source":                ActionTrack,
 		"title_updated_at":            ActionIgnore, // Ordering key for title events.
+		"automation_id":               ActionIgnore, // Never changes after creation.
 		"status":                      ActionIgnore, // Churns every message.
 		"worker_id":                   ActionIgnore, // Internal.
 		"started_at":                  ActionIgnore,
@@ -512,27 +513,28 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"compaction_requested_at":     ActionIgnore, // Internal one-shot manual compaction signal.
 	},
 	&database.ChatAutomation{}: {
-		"id":                       ActionTrack,
-		"organization_id":          ActionTrack,
-		"owner_id":                 ActionTrack,
-		"name":                     ActionTrack,
-		"created_by_chat_id":       ActionTrack,
-		"kind":                     ActionTrack,
-		"enabled":                  ActionTrack,
-		"prompt":                   ActionSecret, // User-authored content, like chat titles.
-		"target_mode":              ActionTrack,
-		"target_chat_id":           ActionTrack,
-		"new_chat_model_config_id": ActionTrack,
-		"project_id":               ActionTrack,
-		"schedule_cron":            ActionTrack,
-		"schedule_time_zone":       ActionTrack,
-		"schedule_next_run_at":     ActionIgnore, // Internal schedule cursor.
-		"last_run_at":              ActionIgnore, // Run outcome, not a configuration change.
-		"last_run_outcome":         ActionIgnore,
-		"last_run_reason":          ActionIgnore,
-		"last_run_chat_id":         ActionIgnore,
-		"created_at":               ActionIgnore,
-		"updated_at":               ActionIgnore,
+		"id":                        ActionTrack,
+		"organization_id":           ActionTrack,
+		"owner_id":                  ActionTrack,
+		"name":                      ActionTrack,
+		"created_by_chat_id":        ActionTrack,
+		"kind":                      ActionTrack,
+		"enabled":                   ActionTrack,
+		"prompt":                    ActionSecret, // User-authored content, like chat titles.
+		"target_mode":               ActionTrack,
+		"target_chat_id":            ActionTrack,
+		"new_chat_model_config_id":  ActionTrack,
+		"project_id":                ActionTrack,
+		"schedule_cron":             ActionTrack,
+		"schedule_time_zone":        ActionTrack,
+		"schedule_next_run_at":      ActionIgnore, // Internal schedule cursor.
+		"last_run_at":               ActionIgnore, // Run outcome, not a configuration change.
+		"last_run_outcome":          ActionIgnore,
+		"last_run_reason":           ActionIgnore,
+		"last_run_chat_id":          ActionIgnore,
+		"last_run_unaccepted_count": ActionIgnore,
+		"created_at":                ActionIgnore,
+		"updated_at":                ActionIgnore,
 	},
 	&database.ChatProject{}: {
 		"id":                                 ActionTrack,

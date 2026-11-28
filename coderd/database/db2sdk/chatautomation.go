@@ -53,10 +53,11 @@ func ChatAutomation(a database.ChatAutomation, refs ChatAutomationRefs, now time
 	}
 	if a.LastRunAt.Valid && a.LastRunOutcome.Valid {
 		out.LastRun = &codersdk.ChatAutomationLastRun{
-			At:      a.LastRunAt.Time,
-			Outcome: codersdk.ChatAutomationRunOutcome(a.LastRunOutcome.ChatAutomationRunOutcome),
-			Reason:  a.LastRunReason.String,
-			ChatID:  nullUUIDPtr(a.LastRunChatID),
+			At:              a.LastRunAt.Time,
+			Outcome:         codersdk.ChatAutomationRunOutcome(a.LastRunOutcome.ChatAutomationRunOutcome),
+			Reason:          a.LastRunReason.String,
+			ChatID:          nullUUIDPtr(a.LastRunChatID),
+			UnacceptedCount: a.LastRunUnacceptedCount,
 		}
 	}
 	return out

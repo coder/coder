@@ -77,6 +77,7 @@ export const RBACResourceActions: Partial<
 		create: "create a new chat automation",
 		delete: "delete a chat automation",
 		read: "read chat automations",
+		run: "run a chat automation now",
 		update: "update, enable or disable a chat automation",
 	},
 	chat_model_config: {

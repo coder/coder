@@ -32,6 +32,8 @@ const (
 	ActionShare Action = "share"
 
 	ActionReadSecret Action = "read_secret"
+
+	ActionRun Action = "run"
 )
 
 type PermissionDefinition struct {
@@ -85,6 +87,7 @@ var chatAutomationActions = map[Action]ActionDefinition{
 	ActionRead:   "read chat automations",
 	ActionUpdate: "update, enable or disable a chat automation",
 	ActionDelete: "delete a chat automation",
+	ActionRun:    "run a chat automation now",
 }
 
 var chatProjectActions = map[Action]ActionDefinition{

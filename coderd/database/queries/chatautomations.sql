@@ -75,3 +75,58 @@ WHERE owner_id = @owner_id::uuid;
 -- name: DeleteChatAutomationByID :exec
 DELETE FROM chat_automations
 WHERE id = @id::uuid;
+
+-- name: ClaimDueChatAutomationSchedules :many
+-- Locks enabled schedules that are due. SKIP LOCKED lets every replica claim
+-- a different set; the caller advances each row in the same transaction.
+SELECT *
+FROM chat_automations
+WHERE
+    kind = 'schedule'
+    AND enabled
+    AND schedule_next_run_at <= @now::timestamptz
+ORDER BY schedule_next_run_at
+LIMIT @limit_count::int
+FOR UPDATE SKIP LOCKED;
+
+-- name: AdvanceChatAutomationNextRunAt :exec
+UPDATE chat_automations
+SET schedule_next_run_at = sqlc.narg('schedule_next_run_at')::timestamptz
+WHERE id = @id::uuid;
+
+-- name: UpdateChatAutomationLastRun :execrows
+-- updated_at tracks changes by people, so a run leaves it alone. A run that
+-- was not accepted is recorded only while the automation is still enabled and
+-- unchanged since the run read it, so a disable or change that commits first
+-- wins. An accepted run sent its message, so it is always recorded.
+UPDATE chat_automations
+SET
+    last_run_at = @last_run_at::timestamptz,
+    last_run_outcome = @last_run_outcome::chat_automation_run_outcome,
+    last_run_reason = sqlc.narg('last_run_reason')::text,
+    last_run_chat_id = sqlc.narg('last_run_chat_id')::uuid,
+    last_run_unaccepted_count = CASE
+        WHEN @last_run_outcome::chat_automation_run_outcome = 'accepted' THEN 0
+        ELSE last_run_unaccepted_count + 1
+    END
+WHERE
+    id = @id::uuid
+    AND (
+        @last_run_outcome::chat_automation_run_outcome = 'accepted'
+        OR (enabled AND updated_at = @read_updated_at::timestamptz)
+    );
+
+-- name: UpdateChatAutomationEnabled :one
+-- Setting the current state keeps the schedule and updated_at, so the
+-- caller still needs update permission and a run in flight is not voided.
+UPDATE chat_automations
+SET
+    enabled = @enabled::boolean,
+    schedule_next_run_at = CASE WHEN enabled = @enabled::boolean
+        THEN schedule_next_run_at
+        ELSE sqlc.narg('schedule_next_run_at')::timestamptz END,
+    updated_at = CASE WHEN enabled = @enabled::boolean
+        THEN updated_at
+        ELSE @updated_at::timestamptz END
+WHERE id = @id::uuid
+RETURNING *;

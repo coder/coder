@@ -707,6 +707,98 @@
 				"x-apidocgen": {
 					"skip": true
 				}
+			},
+			"patch": {
+				"consumes": ["application/json"],
+				"produces": ["application/json"],
+				"tags": ["Chats"],
+				"summary": "Update chat automation",
+				"operationId": "update-chat-automation",
+				"parameters": [
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "Organization ID",
+						"name": "organization",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "Chat automation ID",
+						"name": "automation",
+						"in": "path",
+						"required": true
+					},
+					{
+						"description": "Update chat automation request",
+						"name": "request",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/codersdk.UpdateChatAutomationRequest"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/codersdk.ChatAutomation"
+						}
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"x-apidocgen": {
+					"skip": true
+				}
+			}
+		},
+		"/api/experimental/organizations/{organization}/chats/automations/{automation}/runs": {
+			"post": {
+				"produces": ["application/json"],
+				"tags": ["Chats"],
+				"summary": "Run chat automation now",
+				"operationId": "run-chat-automation",
+				"parameters": [
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "Organization ID",
+						"name": "organization",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "Chat automation ID",
+						"name": "automation",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/codersdk.ChatAutomationRunResult"
+						}
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"x-apidocgen": {
+					"skip": true
+				}
 			}
 		},
 		"/api/experimental/organizations/{organization}/chats/projects": {
@@ -19038,6 +19130,7 @@
 				"chat_automation:create",
 				"chat_automation:delete",
 				"chat_automation:read",
+				"chat_automation:run",
 				"chat_automation:update",
 				"chat_model_config:*",
 				"chat_model_config:create",
@@ -19311,6 +19404,7 @@
 				"APIKeyScopeChatAutomationCreate",
 				"APIKeyScopeChatAutomationDelete",
 				"APIKeyScopeChatAutomationRead",
+				"APIKeyScopeChatAutomationRun",
 				"APIKeyScopeChatAutomationUpdate",
 				"APIKeyScopeChatModelConfigAll",
 				"APIKeyScopeChatModelConfigCreate",
@@ -20198,6 +20292,11 @@
 				"archived": {
 					"type": "boolean"
 				},
+				"automation_id": {
+					"description": "AutomationID is the chat automation whose run created this chat.",
+					"type": "string",
+					"format": "uuid"
+				},
 				"build_id": {
 					"type": "string",
 					"format": "uuid"
@@ -20601,6 +20700,10 @@
 				"reason": {
 					"description": "Reason says why a run was skipped or refused. It is empty otherwise.",
 					"type": "string"
+				},
+				"unaccepted_count": {
+					"description": "UnacceptedCount is how many runs were skipped or refused since the\nlast accepted run.",
+					"type": "integer"
 				}
 			}
 		},
@@ -20612,6 +20715,28 @@
 				"ChatAutomationRunOutcomeSkipped",
 				"ChatAutomationRunOutcomeRefused"
 			]
+		},
+		"codersdk.ChatAutomationRunResult": {
+			"type": "object",
+			"properties": {
+				"chat_id": {
+					"description": "ChatID is the target chat, or the chat a new_chat run created.",
+					"type": "string",
+					"format": "uuid"
+				},
+				"outcome": {
+					"enum": ["accepted", "skipped", "refused"],
+					"allOf": [
+						{
+							"$ref": "#/definitions/codersdk.ChatAutomationRunOutcome"
+						}
+					]
+				},
+				"reason": {
+					"description": "Reason says why the run was skipped or refused. It is empty otherwise.",
+					"type": "string"
+				}
+			}
 		},
 		"codersdk.ChatAutomationTargetMode": {
 			"type": "string",
@@ -21189,6 +21314,11 @@
 		"codersdk.ChatMessage": {
 			"type": "object",
 			"properties": {
+				"automation_id": {
+					"description": "AutomationID is the chat automation whose run sent this message.",
+					"type": "string",
+					"format": "uuid"
+				},
 				"chat_id": {
 					"type": "string",
 					"format": "uuid"
@@ -29264,6 +29394,7 @@
 				"read",
 				"read_personal",
 				"read_secret",
+				"run",
 				"ssh",
 				"share",
 				"unassign",
@@ -29285,6 +29416,7 @@
 				"ActionRead",
 				"ActionReadPersonal",
 				"ActionReadSecret",
+				"ActionRun",
 				"ActionSSH",
 				"ActionShare",
 				"ActionUnassign",
@@ -31489,6 +31621,14 @@
 			"properties": {
 				"auto_archive_days": {
 					"type": "integer"
+				}
+			}
+		},
+		"codersdk.UpdateChatAutomationRequest": {
+			"type": "object",
+			"properties": {
+				"enabled": {
+					"type": "boolean"
 				}
 			}
 		},

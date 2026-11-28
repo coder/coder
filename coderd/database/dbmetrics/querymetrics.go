@@ -152,6 +152,14 @@ func (m queryMetricsStore) ActivityBumpWorkspace(ctx context.Context, arg databa
 	return r0
 }
 
+func (m queryMetricsStore) AdvanceChatAutomationNextRunAt(ctx context.Context, arg database.AdvanceChatAutomationNextRunAtParams) error {
+	start := time.Now()
+	r0 := m.s.AdvanceChatAutomationNextRunAt(ctx, arg)
+	m.queryLatencies.WithLabelValues("AdvanceChatAutomationNextRunAt").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "AdvanceChatAutomationNextRunAt").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) AllUserIDs(ctx context.Context, includeSystem bool) ([]uuid.UUID, error) {
 	start := time.Now()
 	r0, r1 := m.s.AllUserIDs(ctx, includeSystem)
@@ -264,6 +272,14 @@ func (m queryMetricsStore) CalculateAIBridgeInterceptionsTelemetrySummary(ctx co
 	return r0, r1
 }
 
+func (m queryMetricsStore) ClaimDueChatAutomationSchedules(ctx context.Context, arg database.ClaimDueChatAutomationSchedulesParams) ([]database.ChatAutomation, error) {
+	start := time.Now()
+	r0, r1 := m.s.ClaimDueChatAutomationSchedules(ctx, arg)
+	m.queryLatencies.WithLabelValues("ClaimDueChatAutomationSchedules").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ClaimDueChatAutomationSchedules").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) ClaimPrebuiltWorkspace(ctx context.Context, arg database.ClaimPrebuiltWorkspaceParams) (database.ClaimPrebuiltWorkspaceRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.ClaimPrebuiltWorkspace(ctx, arg)
@@ -333,6 +349,14 @@ func (m queryMetricsStore) CountAIBridgeSessions(ctx context.Context, arg databa
 	r0, r1 := m.s.CountAIBridgeSessions(ctx, arg)
 	m.queryLatencies.WithLabelValues("CountAIBridgeSessions").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "CountAIBridgeSessions").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) CountActiveChatsByAutomationID(ctx context.Context, automationID uuid.UUID) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.CountActiveChatsByAutomationID(ctx, automationID)
+	m.queryLatencies.WithLabelValues("CountActiveChatsByAutomationID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "CountActiveChatsByAutomationID").Inc()
 	return r0, r1
 }
 
@@ -5710,6 +5734,22 @@ func (m queryMetricsStore) UpdateChatACLByID(ctx context.Context, arg database.U
 	m.queryLatencies.WithLabelValues("UpdateChatACLByID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateChatACLByID").Inc()
 	return r0
+}
+
+func (m queryMetricsStore) UpdateChatAutomationEnabled(ctx context.Context, arg database.UpdateChatAutomationEnabledParams) (database.ChatAutomation, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateChatAutomationEnabled(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateChatAutomationEnabled").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateChatAutomationEnabled").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) UpdateChatAutomationLastRun(ctx context.Context, arg database.UpdateChatAutomationLastRunParams) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateChatAutomationLastRun(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateChatAutomationLastRun").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateChatAutomationLastRun").Inc()
+	return r0, r1
 }
 
 func (m queryMetricsStore) UpdateChatBuildAgentBinding(ctx context.Context, arg database.UpdateChatBuildAgentBindingParams) (database.Chat, error) {

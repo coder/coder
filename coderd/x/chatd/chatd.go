@@ -202,6 +202,9 @@ type Server struct {
 
 	aibridgeTransportFactory *atomic.Pointer[aibridge.TransportFactory]
 	experiments              codersdk.Experiments
+	// automationsEnabled reports whether chat automations run for an
+	// owner. Nil means that no automation runs.
+	automationsEnabled func(ctx context.Context, ownerID uuid.UUID) bool
 
 	// thinkingDropBlock holds the thinkingDropBlockKey of each provider and
 	// model that accepted Anthropic's thinking drop_block control.
@@ -442,6 +445,12 @@ type CreateOptions struct {
 	InlineMCPServers   []codersdk.InlineMCPServerRequest
 	Labels             database.StringMap
 	DynamicTools       json.RawMessage
+	// AutomationID is the chat automation whose run creates the chat. Its
+	// initial user message carries it too.
+	AutomationID uuid.NullUUID
+	// BeforeInsert, when set, runs first in the transaction that inserts
+	// the chat, after the prompt-submit hooks. Its error is returned as is.
+	BeforeInsert func(store database.Store) error
 }
 
 // SendMessageBusyBehavior controls what happens when a chat is already active.
@@ -467,6 +476,12 @@ type SendMessageOptions struct {
 	MCPServerIDs    *[]uuid.UUID
 	// InlineMCPServers replaces the inline MCP servers. nil: no change.
 	InlineMCPServers *[]codersdk.InlineMCPServerRequest
+	// AutomationID is the chat automation whose run sends the message.
+	AutomationID uuid.NullUUID
+	// BeforeSend, when set, runs first in the transaction that sends the
+	// message, under the chat row lock and after the prompt-submit hooks,
+	// with the locked chat. Its error is returned as is and sends nothing.
+	BeforeSend func(store database.Store, snapshot *chatstate.ChatSnapshot) error
 }
 
 // SendMessageResult contains the outcome of user message processing.
@@ -749,7 +764,9 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 		if marshalErr != nil {
 			return database.Chat{}, xerrors.Errorf("marshal initial user content: %w", marshalErr)
 		}
-		initialMessages = append(initialMessages, userMessage(userContent, opts.ModelConfigID, cmp.Or(opts.CreatedBy, opts.OwnerID), opts.ReasoningEffort))
+		message := userMessage(userContent, opts.ModelConfigID, cmp.Or(opts.CreatedBy, opts.OwnerID), opts.ReasoningEffort)
+		message.AutomationID = opts.AutomationID
+		initialMessages = append(initialMessages, message)
 	}
 
 	result, err := chatstate.CreateChatWithID(ctx, p.db, p.pubsub, chatID, chatstate.CreateChatInput{
@@ -781,6 +798,8 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 		FileIDs:         chatprompt.FileIDs(contentParts),
 		InitialStatus:   initialStatus,
 		MaxFileLinks:    p.chatLimits.MaxAttachmentsPerChat,
+		AutomationID:    opts.AutomationID,
+		BeforeInsert:    opts.BeforeInsert,
 	})
 	if err != nil {
 		return database.Chat{}, err
@@ -1245,8 +1264,12 @@ type Config struct {
 	Clock                          quartz.Clock
 	AIBridgeTransportFactory       *atomic.Pointer[aibridge.TransportFactory]
 	Experiments                    codersdk.Experiments
-	PrometheusRegistry             prometheus.Registerer
-	TracerProvider                 trace.TracerProvider
+	// AutomationsEnabled reports whether chat automations run for an
+	// owner, the user-scoped chat-automations experiment. Nil starts no
+	// automation loop.
+	AutomationsEnabled func(ctx context.Context, ownerID uuid.UUID) bool
+	PrometheusRegistry prometheus.Registerer
+	TracerProvider     trace.TracerProvider
 
 	AgentCapacityUnlock AgentCapacityUnlock
 
@@ -1367,6 +1390,7 @@ func New(ps pubsub.Pubsub, cfg Config) (*Server, error) {
 		},
 		aibridgeTransportFactory: cfg.AIBridgeTransportFactory,
 		experiments:              cfg.Experiments,
+		automationsEnabled:       cfg.AutomationsEnabled,
 		inFlightChatStaleAfter:   inFlightChatStaleAfter,
 		streamSilenceTimeout:     streamSilenceTimeout,
 		usageTracker:             cfg.UsageTracker,

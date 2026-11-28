@@ -53,6 +53,11 @@ type CreateChatInput struct {
 	// MaxFileLinks is the maximum number of files linked to the chat. It
 	// must be positive when FileIDs is not empty.
 	MaxFileLinks int
+	// AutomationID is the chat automation whose run creates the chat.
+	AutomationID uuid.NullUUID
+	// BeforeInsert, when set, runs first in the creating transaction. An
+	// error rolls the transaction back and is returned as is.
+	BeforeInsert func(store database.Store) error
 }
 
 // CreateChatResult is the value returned by [CreateChat]. It carries
@@ -132,6 +137,11 @@ func insertChat(
 	buffer := NewPublishBuffer(publisher)
 	defer buffer.Discard()
 	err := store.InTx(func(store database.Store) error {
+		if input.BeforeInsert != nil {
+			if err := input.BeforeInsert(store); err != nil {
+				return err
+			}
+		}
 		if input.RootChatID.Valid {
 			// Lock the family root before inserting the child so this
 			// transaction serializes with SetFamilyArchived, which also
@@ -171,6 +181,7 @@ func insertChat(
 			Labels:            input.Labels,
 			DynamicTools:      input.DynamicTools,
 			ClientType:        input.ClientType,
+			AutomationID:      input.AutomationID,
 		})
 		if err != nil {
 			return xerrors.Errorf("insert chat: %w", err)

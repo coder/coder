@@ -1445,6 +1445,33 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().DeleteChatAutomationByID(gomock.Any(), automation.ID).Return(nil).AnyTimes()
 		check.Args(automation.ID).Asserts(automation, policy.ActionDelete)
 	}))
+	s.Run("ClaimDueChatAutomationSchedules", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.ClaimDueChatAutomationSchedulesParams{Now: dbtime.Now(), LimitCount: 10}
+		dbm.EXPECT().ClaimDueChatAutomationSchedules(gomock.Any(), arg).Return([]database.ChatAutomation{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceChatAutomation, policy.ActionUpdate).Returns([]database.ChatAutomation{})
+	}))
+	s.Run("AdvanceChatAutomationNextRunAt", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.AdvanceChatAutomationNextRunAtParams{ID: uuid.New()}
+		dbm.EXPECT().AdvanceChatAutomationNextRunAt(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceChatAutomation, policy.ActionUpdate)
+	}))
+	s.Run("UpdateChatAutomationLastRun", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.UpdateChatAutomationLastRunParams{ID: uuid.New(), LastRunOutcome: database.ChatAutomationRunOutcomeAccepted}
+		dbm.EXPECT().UpdateChatAutomationLastRun(gomock.Any(), arg).Return(int64(1), nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceChatAutomation, policy.ActionUpdate).Returns(int64(1))
+	}))
+	s.Run("UpdateChatAutomationEnabled", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		automation := testutil.Fake(s.T(), faker, database.ChatAutomation{})
+		arg := database.UpdateChatAutomationEnabledParams{ID: automation.ID, Enabled: true}
+		dbm.EXPECT().GetChatAutomationByID(gomock.Any(), automation.ID).Return(automation, nil).AnyTimes()
+		dbm.EXPECT().UpdateChatAutomationEnabled(gomock.Any(), arg).Return(automation, nil).AnyTimes()
+		check.Args(arg).Asserts(automation, policy.ActionUpdate).Returns(automation)
+	}))
+	s.Run("CountActiveChatsByAutomationID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		id := uuid.New()
+		dbm.EXPECT().CountActiveChatsByAutomationID(gomock.Any(), id).Return(int64(1), nil).AnyTimes()
+		check.Args(id).Asserts(rbac.ResourceChat, policy.ActionRead).Returns(int64(1))
+	}))
 	s.Run("GetReadableChatsByIDs", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chatA := testutil.Fake(s.T(), faker, database.Chat{})
 		chatB := testutil.Fake(s.T(), faker, database.Chat{})

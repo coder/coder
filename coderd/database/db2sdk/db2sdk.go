@@ -1890,6 +1890,7 @@ func ChatMessage(m database.ChatMessage) codersdk.ChatMessage {
 		CreatedAt:       m.CreatedAt,
 		Role:            codersdk.ChatMessageRole(m.Role),
 		QueuedMessageID: nullInt64Ptr(m.QueuedMessageID),
+		AutomationID:    nullUUIDPtr(m.AutomationID),
 	}
 	if m.Content.Valid {
 		parts, err := chatMessageParts(m)
@@ -2226,6 +2227,7 @@ func ChatWithDiffStatuses(
 		Labels:            labels,
 		ClientType:        codersdk.ChatClientType(c.ClientType),
 		LastError:         lastError,
+		AutomationID:      nullUUIDPtr(c.AutomationID),
 	}
 	if c.LastTurnSummary.Valid {
 		chat.LastTurnSummary = &c.LastTurnSummary.String

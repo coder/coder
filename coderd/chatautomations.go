@@ -20,16 +20,22 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/util/slice"
+	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatautomation"
 	"github.com/coder/coder/v2/codersdk"
 )
 
+// chatAutomationsEnabled reports whether the chat-automations experiment is
+// on for a user. The evaluator fails closed, so an evaluation error is off.
+func (api *API) chatAutomationsEnabled(ctx context.Context, userID uuid.UUID) bool {
+	return api.ExperimentEvaluator.Enabled(ctx, userID, codersdk.ExperimentChatAutomations)
+}
+
 // requireChatAutomationsExperiment answers 404 when the chat-automations
-// experiment is off for the caller. The evaluator fails closed, so an
-// evaluation error is off too.
+// experiment is off for the caller.
 func (api *API) requireChatAutomationsExperiment(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		if !api.ExperimentEvaluator.Enabled(r.Context(), httpmw.APIKey(r).UserID, codersdk.ExperimentChatAutomations) {
+		if !api.chatAutomationsEnabled(r.Context(), httpmw.APIKey(r).UserID) {
 			httpapi.RouteNotFound(rw)
 			return
 		}
@@ -258,6 +264,140 @@ func (api *API) deleteChatAutomation(rw http.ResponseWriter, r *http.Request) {
 		aReq.Old = deleted
 		rw.WriteHeader(http.StatusNoContent)
 	}
+}
+
+// @Summary Update chat automation
+// @ID update-chat-automation
+// @Security CoderSessionToken
+// @Tags Chats
+// @Accept json
+// @Produce json
+// @Param organization path string true "Organization ID" format(uuid)
+// @Param automation path string true "Chat automation ID" format(uuid)
+// @Param request body codersdk.UpdateChatAutomationRequest true "Update chat automation request"
+// @Success 200 {object} codersdk.ChatAutomation
+// @Router /api/experimental/organizations/{organization}/chats/automations/{automation} [patch]
+// @x-apidocgen {"skip": true}
+func (api *API) patchChatAutomation(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	organization := httpmw.OrganizationParam(r)
+	id, ok := parseChatAutomationID(rw, r)
+	if !ok {
+		return
+	}
+
+	aReq, commitAudit := audit.InitRequest[database.ChatAutomation](rw, &audit.RequestParams{
+		Audit:          *api.Auditor.Load(),
+		Log:            api.Logger,
+		Request:        r,
+		Action:         database.AuditActionWrite,
+		OrganizationID: organization.ID,
+	})
+	defer commitAudit()
+
+	// Decoding into the SDK type would read a missing or null enabled as
+	// false and turn the automation off.
+	var body struct {
+		Enabled *bool `json:"enabled" validate:"required"`
+	}
+	if !httpapi.Read(ctx, rw, r, &body) {
+		return
+	}
+	req := codersdk.UpdateChatAutomationRequest{Enabled: *body.Enabled}
+	before, after, err := chatautomation.Update(ctx, api.Database, organization.ID, id, req, dbtime.Now())
+	switch {
+	case errors.Is(err, chatautomation.ErrUpdateForbidden):
+		httpapi.Forbidden(rw)
+		return
+	case httpapi.Is404Error(err):
+		httpapi.ResourceNotFound(rw)
+		return
+	case err != nil:
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+	aReq.Old = before
+	aReq.New = after
+
+	// The change is committed, so a failed read of the owner and chats
+	// leaves them out of the response instead of failing it.
+	refs, err := chatautomation.LoadRefs(ctx, api.Database, []database.ChatAutomation{after})
+	if err != nil {
+		api.Logger.Warn(ctx, "load chat automation references for the update response", slog.Error(err))
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.ChatAutomation(after, refs, dbtime.Now()))
+}
+
+// @Summary Run chat automation now
+// @ID run-chat-automation
+// @Security CoderSessionToken
+// @Tags Chats
+// @Produce json
+// @Param organization path string true "Organization ID" format(uuid)
+// @Param automation path string true "Chat automation ID" format(uuid)
+// @Success 200 {object} codersdk.ChatAutomationRunResult
+// @Router /api/experimental/organizations/{organization}/chats/automations/{automation}/runs [post]
+// @x-apidocgen {"skip": true}
+func (api *API) postChatAutomationRun(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	organization := httpmw.OrganizationParam(r)
+	id, ok := parseChatAutomationID(rw, r)
+	if !ok || !api.requireChatDaemon(ctx, rw) {
+		return
+	}
+
+	aReq, commitAudit := audit.InitRequest[database.ChatAutomation](rw, &audit.RequestParams{
+		Audit:          *api.Auditor.Load(),
+		Log:            api.Logger,
+		Request:        r,
+		Action:         database.AuditActionStart,
+		OrganizationID: organization.ID,
+	})
+	defer commitAudit()
+
+	automation, err := api.Database.GetChatAutomationByID(ctx, id)
+	if httpapi.Is404Error(err) || (err == nil && automation.OrganizationID != organization.ID) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+	if err != nil {
+		httpapi.InternalServerError(rw, xerrors.Errorf("get chat automation: %w", err))
+		return
+	}
+	aReq.Old = automation
+	aReq.New = automation
+	// The run action belongs to the owner alone: an administrator can read,
+	// disable and delete the automation, but not send its prompt as the
+	// owner.
+	if !api.Authorize(r, policy.ActionRun, automation) {
+		httpapi.Forbidden(rw)
+		return
+	}
+	if automation.Kind != database.ChatAutomationKindSchedule || !automation.Enabled {
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+			Message: "Only an enabled schedule can run now.",
+		})
+		return
+	}
+	result, err := api.chatDaemon.RunAutomationNow(ctx, automation)
+	if errors.Is(err, chatd.ErrAutomationChanged) {
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+			Message: "The automation was disabled or changed while it ran.",
+		})
+		return
+	}
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+	out := codersdk.ChatAutomationRunResult{
+		Outcome: codersdk.ChatAutomationRunOutcome(result.Outcome),
+		Reason:  result.Reason,
+	}
+	if result.ChatID.Valid {
+		out.ChatID = &result.ChatID.UUID
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, out)
 }
 
 func parseChatAutomationID(rw http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
