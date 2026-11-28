@@ -129,8 +129,15 @@ const reportQueuedEditError = async (
 	}
 };
 
-const AgentChatPage: React.FC = () => {
-	const { agentId } = useParams() as { agentId: string };
+type AgentChatPageProps = {
+	// Overrides the :agentId route param.
+	chatId?: string;
+};
+
+/** Renders the chat from the `chatId` prop or the :agentId route param. */
+export const AgentChatPage: React.FC<AgentChatPageProps> = ({ chatId }) => {
+	const params = useParams() as { agentId: string };
+	const agentId = chatId ?? params.agentId;
 	const {
 		chatErrorReasons,
 		setChatErrorReason,
