@@ -2876,6 +2876,7 @@ const docTemplate = `{
         },
         "/api/v2/ai/providers": {
             "get": {
+                "description": "Lists AI providers, including disabled ones. The ` + "`" + `base_url` + "`" + `, ` + "`" + `api_keys` + "`" + `, ` + "`" + `settings` + "`" + `, and ` + "`" + `status` + "`" + ` fields are empty when the caller can't read AI provider configuration.",
                 "produces": [
                     "application/json"
                 ],
@@ -20983,6 +20984,7 @@ const docTemplate = `{
                 "ai_provider:create",
                 "ai_provider:delete",
                 "ai_provider:read",
+                "ai_provider:read_secret",
                 "ai_provider:update",
                 "ai_seat:*",
                 "ai_seat:create",
@@ -21251,6 +21253,7 @@ const docTemplate = `{
                 "APIKeyScopeAiProviderCreate",
                 "APIKeyScopeAiProviderDelete",
                 "APIKeyScopeAiProviderRead",
+                "APIKeyScopeAiProviderReadSecret",
                 "APIKeyScopeAiProviderUpdate",
                 "APIKeyScopeAiSeatAll",
                 "APIKeyScopeAiSeatCreate",

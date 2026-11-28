@@ -36,12 +36,16 @@ func TestAIProvidersCRUD(t *testing.T) {
 	t.Run("EmptyList", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
-		_ = coderdtest.CreateFirstUser(t, client)
+		firstUser := coderdtest.CreateFirstUser(t, client)
+		memberClient, _ := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
 		ctx := testutil.Context(t, testutil.WaitLong)
-		//nolint:gocritic // Owner role is the audience for this endpoint.
+		//nolint:gocritic // Owners get the full view, which is built separately.
 		got, err := client.AIProviders(ctx)
 		require.NoError(t, err)
-		require.Empty(t, got)
+		require.Equal(t, []codersdk.AIProvider{}, got)
+		got, err = memberClient.AIProviders(ctx)
+		require.NoError(t, err)
+		require.Equal(t, []codersdk.AIProvider{}, got)
 	})
 
 	t.Run("CreatePreservesPresetProviderTypes", func(t *testing.T) {
@@ -82,7 +86,7 @@ func TestAIProvidersCRUD(t *testing.T) {
 	t.Run("CreateGetUpdateDelete", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
-		_ = coderdtest.CreateFirstUser(t, client)
+		firstUser := coderdtest.CreateFirstUser(t, client)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		// Create.
@@ -156,6 +160,14 @@ func TestAIProvidersCRUD(t *testing.T) {
 		require.NotNil(t, updated.Settings.Bedrock)
 		require.Equal(t, "us-west-2", updated.Settings.Bedrock.Region)
 		require.Equal(t, "anthropic.claude-3-5-sonnet", updated.Settings.Bedrock.Model)
+
+		memberClient, _ := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+		memberList, err := memberClient.AIProviders(ctx)
+		require.NoError(t, err)
+		withoutConfig := updated
+		withoutConfig.BaseURL = ""
+		withoutConfig.Settings = codersdk.AIProviderSettings{}
+		require.Equal(t, []codersdk.AIProvider{withoutConfig}, memberList)
 
 		// Delete.
 		err = client.DeleteAIProvider(ctx, created.ID.String())

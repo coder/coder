@@ -37,7 +37,8 @@ var (
 	// Valid Actions
 	//  - "ActionCreate" :: create an AI provider
 	//  - "ActionDelete" :: delete an AI provider
-	//  - "ActionRead" :: read AI provider configuration
+	//  - "ActionRead" :: read AI provider metadata, never the configuration
+	//  - "ActionReadSecret" :: read AI provider configuration and keys
 	//  - "ActionUpdate" :: update an AI provider
 	ResourceAIProvider = Object{
 		Type: "ai_provider",

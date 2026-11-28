@@ -312,7 +312,8 @@ CREATE TYPE api_key_scope AS ENUM (
     'workspace_secret:create',
     'workspace_secret:read',
     'workspace_secret:read_secret',
-    'workspace_secret:update'
+    'workspace_secret:update',
+    'ai_provider:read_secret'
 );
 
 CREATE TYPE app_sharing_level AS ENUM (

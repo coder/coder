@@ -10,7 +10,7 @@ import AddProviderPageView from "./AddProviderPageView";
 
 const AddProviderPage: React.FC = () => {
 	const { permissions } = useAuthenticated();
-	const hasPermission = permissions.viewAnyAIProvider;
+	const hasPermission = permissions.viewAnyAIProviderConfig;
 	const [searchParams] = useSearchParams();
 	const typeParam = searchParams.get("type");
 

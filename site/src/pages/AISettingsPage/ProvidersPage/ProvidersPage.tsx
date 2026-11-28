@@ -7,7 +7,7 @@ import { pageTitle } from "#/utils/page";
 
 const ProvidersPage: React.FC = () => {
 	const { permissions } = useAuthenticated();
-	const hasPermission = permissions.viewAnyAIProvider;
+	const hasPermission = permissions.viewAnyAIProviderConfig;
 
 	const providersQuery = useQuery(aiProvidersList());
 

@@ -92,7 +92,7 @@ var RBACResourceActions = map[RBACResource][]RBACAction{
 	ResourceWildcard:                      {},
 	ResourceAIGatewayKey:                  {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
 	ResourceAiModelPrice:                  {ActionRead, ActionUpdate},
-	ResourceAIProvider:                    {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
+	ResourceAIProvider:                    {ActionCreate, ActionDelete, ActionRead, ActionReadSecret, ActionUpdate},
 	ResourceAiSeat:                        {ActionCreate, ActionRead},
 	ResourceAibridgeInterception:          {ActionCreate, ActionRead, ActionUpdate},
 	ResourceApiKey:                        {ActionCreate, ActionDelete, ActionRead, ActionUpdate},

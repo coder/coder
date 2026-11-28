@@ -713,6 +713,67 @@ func (q *sqlQuerier) GetAIProviderFilterOptions(ctx context.Context) ([]GetAIPro
 	return items, nil
 }
 
+const getAIProviderSummaries = `-- name: GetAIProviderSummaries :many
+SELECT
+    id,
+    type,
+    name,
+    display_name,
+    icon,
+    enabled,
+    created_at,
+    updated_at
+FROM
+    ai_providers
+WHERE
+    NOT deleted
+ORDER BY
+    name ASC
+`
+
+type GetAIProviderSummariesRow struct {
+	ID          uuid.UUID      `db:"id" json:"id"`
+	Type        AIProviderType `db:"type" json:"type"`
+	Name        string         `db:"name" json:"name"`
+	DisplayName sql.NullString `db:"display_name" json:"display_name"`
+	Icon        string         `db:"icon" json:"icon"`
+	Enabled     bool           `db:"enabled" json:"enabled"`
+	CreatedAt   time.Time      `db:"created_at" json:"created_at"`
+	UpdatedAt   time.Time      `db:"updated_at" json:"updated_at"`
+}
+
+func (q *sqlQuerier) GetAIProviderSummaries(ctx context.Context) ([]GetAIProviderSummariesRow, error) {
+	rows, err := q.db.QueryContext(ctx, getAIProviderSummaries)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetAIProviderSummariesRow
+	for rows.Next() {
+		var i GetAIProviderSummariesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Type,
+			&i.Name,
+			&i.DisplayName,
+			&i.Icon,
+			&i.Enabled,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getAIProviders = `-- name: GetAIProviders :many
 SELECT
     id, type, name, display_name, enabled, deleted, base_url, settings, settings_key_id, created_at, updated_at, icon

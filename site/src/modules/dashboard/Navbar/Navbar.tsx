@@ -39,7 +39,7 @@ export const Navbar: React.FC = () => {
 	const canViewAIBridge =
 		featureVisibility.aibridge && permissions.viewAnyAIBridgeInterception;
 	const canViewSiteWideAISettings =
-		permissions.viewAnyAIProvider ||
+		permissions.viewAnyAIProviderConfig ||
 		permissions.viewAIGatewayKeys ||
 		permissions.editDeploymentConfig ||
 		permissions.viewAnyMCPServerConfigs ||

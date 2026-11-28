@@ -135,9 +135,9 @@
 		"object": { "resource_type": "aibridge_interception", "any_org": true },
 		"action": "read"
 	},
-	"viewAnyAIProvider": {
+	"viewAnyAIProviderConfig": {
 		"object": { "resource_type": "ai_provider" },
-		"action": "read"
+		"action": "read_secret"
 	},
 	"viewAIGatewayKeys": {
 		"object": { "resource_type": "ai_gateway_key" },

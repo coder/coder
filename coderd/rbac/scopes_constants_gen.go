@@ -16,6 +16,7 @@ const (
 	ScopeAiProviderCreate                    ScopeName = "ai_provider:create"
 	ScopeAiProviderDelete                    ScopeName = "ai_provider:delete"
 	ScopeAiProviderRead                      ScopeName = "ai_provider:read"
+	ScopeAiProviderReadSecret                ScopeName = "ai_provider:read_secret"
 	ScopeAiProviderUpdate                    ScopeName = "ai_provider:update"
 	ScopeAiSeatCreate                        ScopeName = "ai_seat:create"
 	ScopeAiSeatRead                          ScopeName = "ai_seat:read"
@@ -227,6 +228,7 @@ func (e ScopeName) Valid() bool {
 		ScopeAiProviderCreate,
 		ScopeAiProviderDelete,
 		ScopeAiProviderRead,
+		ScopeAiProviderReadSecret,
 		ScopeAiProviderUpdate,
 		ScopeAiSeatCreate,
 		ScopeAiSeatRead,
@@ -439,6 +441,7 @@ func AllScopeNameValues() []ScopeName {
 		ScopeAiProviderCreate,
 		ScopeAiProviderDelete,
 		ScopeAiProviderRead,
+		ScopeAiProviderReadSecret,
 		ScopeAiProviderUpdate,
 		ScopeAiSeatCreate,
 		ScopeAiSeatRead,

@@ -8202,7 +8202,7 @@ func parseUserAIProviderID(r *http.Request) (uuid.UUID, error) {
 	return uuid.Parse(chi.URLParam(r, "aiProvider"))
 }
 
-func convertAIProviderSummary(provider database.AIProvider) codersdk.AIProviderSummary {
+func convertAIProviderSummary(provider database.GetAIProviderSummariesRow) codersdk.AIProviderSummary {
 	displayName := provider.Name
 	if provider.DisplayName.Valid && provider.DisplayName.String != "" {
 		displayName = provider.DisplayName.String
@@ -8214,7 +8214,6 @@ func convertAIProviderSummary(provider database.AIProvider) codersdk.AIProviderS
 		DisplayName: displayName,
 		Icon:        provider.Icon,
 		Enabled:     provider.Enabled,
-		Deleted:     provider.Deleted,
 	}
 }
 
@@ -8231,7 +8230,7 @@ func (api *API) listUserAIProviderKeyConfigs(rw http.ResponseWriter, r *http.Req
 	targetUser := httpmw.UserParam(r)
 	//nolint:gocritic // Users can list limited provider metadata to manage their own AI provider keys.
 	metadataCtx := dbauthz.AsAIProviderMetadataReader(ctx)
-	providers, err := api.Database.GetAIProviders(metadataCtx, database.GetAIProvidersParams{IncludeDisabled: true})
+	providers, err := api.Database.GetAIProviderSummaries(metadataCtx)
 	if err != nil {
 		api.Logger.Error(ctx, "failed to list user AI provider configs", slog.Error(err), slog.F("user_id", targetUser.ID))
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{Message: "Failed to list AI providers."})
@@ -8249,7 +8248,7 @@ func (api *API) listUserAIProviderKeyConfigs(rw http.ResponseWriter, r *http.Req
 		keysByProviderID[key.AIProviderID] = struct{}{}
 	}
 
-	visibleProviders := make([]database.AIProvider, 0, len(providers))
+	visibleProviders := make([]database.GetAIProviderSummariesRow, 0, len(providers))
 	visibleProviderIDs := make([]uuid.UUID, 0, len(providers))
 	for _, provider := range providers {
 		_, hasUserKey := keysByProviderID[provider.ID]
@@ -8313,14 +8312,17 @@ func (api *API) upsertUserAIProviderKey(rw http.ResponseWriter, r *http.Request)
 	}
 	//nolint:gocritic // Users can attach their own key to an enabled provider without AI provider admin permissions.
 	metadataCtx := dbauthz.AsAIProviderMetadataReader(ctx)
-	provider, err := api.Database.GetAIProviderByID(metadataCtx, providerID)
+	providers, err := api.Database.GetAIProviderSummaries(metadataCtx)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{Message: "AI provider not found."})
-			return
-		}
 		api.Logger.Error(ctx, "failed to get AI provider", slog.Error(err), slog.F("ai_provider_id", providerID))
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{Message: "Failed to get AI provider."})
+		return
+	}
+	provider, ok := slice.Find(providers, func(p database.GetAIProviderSummariesRow) bool {
+		return p.ID == providerID
+	})
+	if !ok {
+		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{Message: "AI provider not found."})
 		return
 	}
 	if !provider.Enabled {

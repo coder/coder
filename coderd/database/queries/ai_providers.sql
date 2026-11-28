@@ -39,6 +39,23 @@ WHERE
 ORDER BY
     name ASC;
 
+-- name: GetAIProviderSummaries :many
+SELECT
+    id,
+    type,
+    name,
+    display_name,
+    icon,
+    enabled,
+    created_at,
+    updated_at
+FROM
+    ai_providers
+WHERE
+    NOT deleted
+ORDER BY
+    name ASC;
+
 -- name: GetAIProviderFilterOptions :many
 -- Returns the display metadata AI Gateway session viewers need to filter
 -- interceptions by provider_name. Soft-deleted and disabled rows are

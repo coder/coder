@@ -55,7 +55,7 @@ export const canViewDeploymentSettings = (
 			permissions.viewAnyGroup ||
 			permissions.viewNotificationTemplate ||
 			permissions.viewOrganizationIDPSyncSettings ||
-			permissions.viewAnyAIProvider ||
+			permissions.viewAnyAIProviderConfig ||
 			permissions.viewAIGatewayKeys ||
 			canAccessAnyChatModelConfig(permissions))
 	);

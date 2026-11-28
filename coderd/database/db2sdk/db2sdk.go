@@ -51,15 +51,11 @@ func APIAllowListTarget(entry rbac.AllowListElement) codersdk.APIAllowListTarget
 // write-only fields on Settings are stripped, so the result is safe
 // to echo back in API responses.
 func AIProvider(row database.AIProvider, keys []database.AIProviderKey) (codersdk.AIProvider, error) {
-	display := row.Name
-	if row.DisplayName.Valid && row.DisplayName.String != "" {
-		display = row.DisplayName.String
-	}
 	out := codersdk.AIProvider{
 		ID:          row.ID,
 		Type:        codersdk.AIProviderType(row.Type),
 		Name:        row.Name,
-		DisplayName: display,
+		DisplayName: aiProviderDisplayName(row.Name, row.DisplayName),
 		Icon:        row.Icon,
 		Enabled:     row.Enabled,
 		BaseURL:     row.BaseUrl,
@@ -73,6 +69,29 @@ func AIProvider(row database.AIProvider, keys []database.AIProviderKey) (codersd
 	}
 	out.Settings = redactAIProviderSettings(s)
 	return out, nil
+}
+
+// AIProviderFromSummary converts a summary row. The base URL, keys, and
+// settings stay empty.
+func AIProviderFromSummary(row database.GetAIProviderSummariesRow) codersdk.AIProvider {
+	return codersdk.AIProvider{
+		ID:          row.ID,
+		Type:        codersdk.AIProviderType(row.Type),
+		Name:        row.Name,
+		DisplayName: aiProviderDisplayName(row.Name, row.DisplayName),
+		Icon:        row.Icon,
+		Enabled:     row.Enabled,
+		APIKeys:     []codersdk.AIProviderKey{},
+		CreatedAt:   row.CreatedAt,
+		UpdatedAt:   row.UpdatedAt,
+	}
+}
+
+func aiProviderDisplayName(name string, displayName sql.NullString) string {
+	if displayName.Valid && displayName.String != "" {
+		return displayName.String
+	}
+	return name
 }
 
 // AIProviderSettings parses the on-disk JSON form back into a codersdk

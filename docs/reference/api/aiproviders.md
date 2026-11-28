@@ -18,6 +18,8 @@ curl -X GET http://coder-server:8080/api/v2/ai/providers \
 
 `GET /api/v2/ai/providers`
 
+Lists AI providers, including disabled ones. The `base_url`, `api_keys`, `settings`, and `status` fields are empty when the caller can't read AI provider configuration.
+
 ### Example responses
 
 > 200 Response

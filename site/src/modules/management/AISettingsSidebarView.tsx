@@ -166,7 +166,7 @@ const AISettingsSidebarView: React.FC<AISettingsSidebarViewProps> = ({
 						AI Gateway keys
 					</SidebarNavItem>
 				)}
-				{permissions.viewAnyAIProvider && (
+				{permissions.viewAnyAIProviderConfig && (
 					<SidebarNavItem href="/ai/settings/providers">
 						Providers
 					</SidebarNavItem>

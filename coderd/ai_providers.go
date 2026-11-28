@@ -46,6 +46,7 @@ func aiProvidersHandler(api *API, middlewares ...func(http.Handler) http.Handler
 }
 
 // @Summary List AI providers
+// @Description Lists AI providers, including disabled ones. The `base_url`, `api_keys`, `settings`, and `status` fields are empty when the caller can't read AI provider configuration.
 // @ID list-ai-providers
 // @Security CoderSessionToken
 // @Produce json
@@ -55,11 +56,8 @@ func aiProvidersHandler(api *API, middlewares ...func(http.Handler) http.Handler
 func (api *API) aiProvidersList(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	rows, err := api.Database.GetAIProviders(ctx, database.GetAIProvidersParams{
-		IncludeDisabled: true,
-	})
+	summaries, err := api.Database.GetAIProviderSummaries(ctx)
 	if dbauthz.IsNotAuthorizedError(err) {
-		api.Logger.Error(ctx, "list AI providers", slog.Error(err))
 		httpapi.Forbidden(rw)
 		return
 	}
@@ -72,32 +70,50 @@ func (api *API) aiProvidersList(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	keysByProvider, err := loadAIProviderKeysByProvider(ctx, api.Database)
-	if err != nil {
-		api.Logger.Error(ctx, "list AI provider keys", slog.Error(err))
+	withConfig, err := api.aiProvidersWithConfig(ctx)
+	if err != nil && !dbauthz.IsNotAuthorizedError(err) {
+		api.Logger.Error(ctx, "list AI provider configuration", slog.Error(err))
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error loading AI provider keys.",
+			Message: "Internal error listing AI providers.",
 			Detail:  err.Error(),
 		})
 		return
 	}
 
-	namesByHost := buildHostnameCollisionMap(rows)
-	out := make([]codersdk.AIProvider, 0, len(rows))
-	for _, row := range rows {
-		sdk, err := db2sdk.AIProvider(row, keysByProvider[row.ID])
-		if err != nil {
-			api.Logger.Error(ctx, "convert AI provider", slog.F("provider_id", row.ID), slog.Error(err))
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Internal error converting AI provider.",
-				Detail:  err.Error(),
-			})
-			return
+	out := make([]codersdk.AIProvider, 0, len(summaries))
+	for _, row := range summaries {
+		sdk, ok := withConfig[row.ID]
+		if !ok {
+			sdk = db2sdk.AIProviderFromSummary(row)
 		}
-		sdk.Status = api.aiProviderStatus(row, namesByHost)
 		out = append(out, sdk)
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, out)
+}
+
+func (api *API) aiProvidersWithConfig(ctx context.Context) (map[uuid.UUID]codersdk.AIProvider, error) {
+	rows, err := api.Database.GetAIProviders(ctx, database.GetAIProvidersParams{
+		IncludeDisabled: true,
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("get AI providers: %w", err)
+	}
+	keysByProvider, err := loadAIProviderKeysByProvider(ctx, api.Database)
+	if err != nil {
+		return nil, xerrors.Errorf("load AI provider keys: %w", err)
+	}
+
+	namesByHost := buildHostnameCollisionMap(rows)
+	out := make(map[uuid.UUID]codersdk.AIProvider, len(rows))
+	for _, row := range rows {
+		sdk, err := db2sdk.AIProvider(row, keysByProvider[row.ID])
+		if err != nil {
+			return nil, xerrors.Errorf("convert AI provider %s: %w", row.ID, err)
+		}
+		sdk.Status = api.aiProviderStatus(row, namesByHost)
+		out[row.ID] = sdk
+	}
+	return out, nil
 }
 
 // @Summary Get an AI provider

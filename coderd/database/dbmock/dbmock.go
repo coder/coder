@@ -2335,6 +2335,21 @@ func (mr *MockStoreMockRecorder) GetAIProviderKeysByProviderIDs(ctx, providerIds
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAIProviderKeysByProviderIDs", reflect.TypeOf((*MockStore)(nil).GetAIProviderKeysByProviderIDs), ctx, providerIds)
 }
 
+// GetAIProviderSummaries mocks base method.
+func (m *MockStore) GetAIProviderSummaries(ctx context.Context) ([]database.GetAIProviderSummariesRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAIProviderSummaries", ctx)
+	ret0, _ := ret[0].([]database.GetAIProviderSummariesRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAIProviderSummaries indicates an expected call of GetAIProviderSummaries.
+func (mr *MockStoreMockRecorder) GetAIProviderSummaries(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAIProviderSummaries", reflect.TypeOf((*MockStore)(nil).GetAIProviderSummaries), ctx)
+}
+
 // GetAIProviders mocks base method.
 func (m *MockStore) GetAIProviders(ctx context.Context, arg database.GetAIProvidersParams) ([]database.AIProvider, error) {
 	m.ctrl.T.Helper()
