@@ -289,6 +289,19 @@ func (*Anthropic) CategorizeError(err error) *recorder.ErrorType {
 	return categorizeAnthropicError(err)
 }
 
+// Anthropic stream errors report an error type rather than an HTTP status.
+var anthropicStreamErrorCategories = map[string]recorder.ErrorType{
+	"invalid_request_error": recorder.ErrorTypeBadRequest,
+	"not_found_error":       recorder.ErrorTypeBadRequest,
+	"request_too_large":     recorder.ErrorTypeBadRequest,
+	"authentication_error":  recorder.ErrorTypeUnauthorized,
+	"permission_error":      recorder.ErrorTypeUnauthorized,
+	"rate_limit_error":      recorder.ErrorTypeRateLimited,
+	"timeout_error":         recorder.ErrorTypeTimeout,
+	"api_error":             recorder.ErrorTypeServerError,
+	"overloaded_error":      recorder.ErrorTypeOverloaded,
+}
+
 // categorizeAnthropicError categorizes a terminal error from an Anthropic
 // (messages) provider. It returns nil when err is not an Anthropic-shaped error.
 func categorizeAnthropicError(err error) *recorder.ErrorType {
@@ -297,6 +310,11 @@ func categorizeAnthropicError(err error) *recorder.ErrorType {
 	switch {
 	case errors.As(err, &envErr):
 		status = envErr.StatusCode
+		if status == 0 && envErr.ErrorResponse != nil {
+			if category, ok := anthropicStreamErrorCategories[envErr.ErrorResponse.Error.Type]; ok {
+				return &category
+			}
+		}
 	default:
 		apiErr := messages.ResponseErrorFromAPIError(err)
 		if apiErr == nil {

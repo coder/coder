@@ -3,6 +3,7 @@ package provider
 import (
 	"testing"
 
+	"github.com/anthropics/anthropic-sdk-go/shared"
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/xerrors"
 
@@ -17,6 +18,12 @@ func TestAnthropicCategorizeError(t *testing.T) {
 	t.Parallel()
 
 	p := &Anthropic{}
+	envelope := func(status int, typ string) *messages.ResponseError {
+		return &messages.ResponseError{
+			StatusCode:    status,
+			ErrorResponse: &shared.ErrorResponse{Error: shared.ErrorObjectUnion{Type: typ}},
+		}
+	}
 	cases := []struct {
 		name string
 		err  error
@@ -29,6 +36,17 @@ func TestAnthropicCategorizeError(t *testing.T) {
 		{"payload too large is bad request", &messages.ResponseError{StatusCode: 413}, ptr(recorder.ErrorTypeBadRequest)},
 		{"timeout", &messages.ResponseError{StatusCode: 408}, ptr(recorder.ErrorTypeTimeout)},
 		{"server error", &messages.ResponseError{StatusCode: 503}, ptr(recorder.ErrorTypeServerError)},
+		{"status takes precedence", envelope(429, "overloaded_error"), ptr(recorder.ErrorTypeRateLimited)},
+		{"invalid request event", envelope(0, "invalid_request_error"), ptr(recorder.ErrorTypeBadRequest)},
+		{"not found event", envelope(0, "not_found_error"), ptr(recorder.ErrorTypeBadRequest)},
+		{"request too large event", envelope(0, "request_too_large"), ptr(recorder.ErrorTypeBadRequest)},
+		{"authentication event", envelope(0, "authentication_error"), ptr(recorder.ErrorTypeUnauthorized)},
+		{"permission event", envelope(0, "permission_error"), ptr(recorder.ErrorTypeUnauthorized)},
+		{"rate limit event", envelope(0, "rate_limit_error"), ptr(recorder.ErrorTypeRateLimited)},
+		{"timeout event", envelope(0, "timeout_error"), ptr(recorder.ErrorTypeTimeout)},
+		{"API error event", envelope(0, "api_error"), ptr(recorder.ErrorTypeServerError)},
+		{"overloaded event", envelope(0, "overloaded_error"), ptr(recorder.ErrorTypeOverloaded)},
+		{"unrecognized event error type", envelope(0, "future_error"), ptr(recorder.ErrorTypeUnknown)},
 		{"not this provider", xerrors.New("mystery"), nil},
 	}
 
