@@ -2994,15 +2994,40 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/setting
       "string"
     ]
   },
-  "regex_filter": {}
+  "received_settings": {
+    "auto_create_missing_groups": true,
+    "field": "string",
+    "legacy_group_name_mapping": {
+      "property1": "string",
+      "property2": "string"
+    },
+    "mapping": {
+      "property1": [
+        "string"
+      ],
+      "property2": [
+        "string"
+      ]
+    },
+    "regex_filter": {}
+  },
+  "regex_filter": {},
+  "warnings": [
+    {
+      "accepted": {},
+      "code": "field_empty",
+      "path": "string",
+      "received": {}
+    }
+  ]
 }
 ```
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                             |
-|--------|---------------------------------------------------------|-------------|--------------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.GroupSyncSettings](schemas.md#codersdkgroupsyncsettings) |
+| Status | Meaning                                                 | Description | Schema                                                                             |
+|--------|---------------------------------------------------------|-------------|------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.GroupSyncSettingsResponse](schemas.md#codersdkgroupsyncsettingsresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -3069,15 +3094,40 @@ curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/setti
       "string"
     ]
   },
-  "regex_filter": {}
+  "received_settings": {
+    "auto_create_missing_groups": true,
+    "field": "string",
+    "legacy_group_name_mapping": {
+      "property1": "string",
+      "property2": "string"
+    },
+    "mapping": {
+      "property1": [
+        "string"
+      ],
+      "property2": [
+        "string"
+      ]
+    },
+    "regex_filter": {}
+  },
+  "regex_filter": {},
+  "warnings": [
+    {
+      "accepted": {},
+      "code": "field_empty",
+      "path": "string",
+      "received": {}
+    }
+  ]
 }
 ```
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                             |
-|--------|---------------------------------------------------------|-------------|--------------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.GroupSyncSettings](schemas.md#codersdkgroupsyncsettings) |
+| Status | Meaning                                                 | Description | Schema                                                                             |
+|--------|---------------------------------------------------------|-------------|------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.GroupSyncSettingsResponse](schemas.md#codersdkgroupsyncsettingsresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -3132,15 +3182,40 @@ curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/setti
       "string"
     ]
   },
-  "regex_filter": {}
+  "received_settings": {
+    "auto_create_missing_groups": true,
+    "field": "string",
+    "legacy_group_name_mapping": {
+      "property1": "string",
+      "property2": "string"
+    },
+    "mapping": {
+      "property1": [
+        "string"
+      ],
+      "property2": [
+        "string"
+      ]
+    },
+    "regex_filter": {}
+  },
+  "regex_filter": {},
+  "warnings": [
+    {
+      "accepted": {},
+      "code": "field_empty",
+      "path": "string",
+      "received": {}
+    }
+  ]
 }
 ```
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                             |
-|--------|---------------------------------------------------------|-------------|--------------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.GroupSyncSettings](schemas.md#codersdkgroupsyncsettings) |
+| Status | Meaning                                                 | Description | Schema                                                                             |
+|--------|---------------------------------------------------------|-------------|------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.GroupSyncSettingsResponse](schemas.md#codersdkgroupsyncsettingsresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -3204,15 +3279,40 @@ curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/setti
       "string"
     ]
   },
-  "regex_filter": {}
+  "received_settings": {
+    "auto_create_missing_groups": true,
+    "field": "string",
+    "legacy_group_name_mapping": {
+      "property1": "string",
+      "property2": "string"
+    },
+    "mapping": {
+      "property1": [
+        "string"
+      ],
+      "property2": [
+        "string"
+      ]
+    },
+    "regex_filter": {}
+  },
+  "regex_filter": {},
+  "warnings": [
+    {
+      "accepted": {},
+      "code": "field_empty",
+      "path": "string",
+      "received": {}
+    }
+  ]
 }
 ```
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                             |
-|--------|---------------------------------------------------------|-------------|--------------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.GroupSyncSettings](schemas.md#codersdkgroupsyncsettings) |
+| Status | Meaning                                                 | Description | Schema                                                                             |
+|--------|---------------------------------------------------------|-------------|------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.GroupSyncSettingsResponse](schemas.md#codersdkgroupsyncsettingsresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
