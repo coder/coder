@@ -25,6 +25,8 @@ export const DEPRECATED_ICONS = [
 	"gcp.png",
 	// Use k8s.svg instead
 	"k8s.png",
+	// Use xum.svg instead
+	"mux.svg",
 	// Use nodejs.svg instead
 	"node.svg",
 	// Use ruby.svg instead
