@@ -139,7 +139,7 @@ describe("PortPreviewPanel annotations", () => {
 
 		receive({ type: "coder-annotator:ready" });
 		expect(postMessage).toHaveBeenCalledWith(
-			{ type: "coder-annotator:set-picking", picking: true },
+			{ type: "coder-annotator:set-picking", picking: true, hint: true },
 			frameOrigin,
 		);
 	});
@@ -171,7 +171,7 @@ describe("PortPreviewPanel annotations", () => {
 		await userEvent.click(annotateButton());
 		expect(frame()).toBe(readyFrame);
 		expect(postMessage).toHaveBeenCalledWith(
-			{ type: "coder-annotator:set-picking", picking: true },
+			{ type: "coder-annotator:set-picking", picking: true, hint: true },
 			frameOrigin,
 		);
 	});
@@ -396,7 +396,7 @@ describe("PortPreviewPanel annotations", () => {
 			setSender(undefined);
 			if (ready) {
 				expect(postMessage).toHaveBeenCalledWith(
-					{ type: "coder-annotator:set-picking", picking: false },
+					{ type: "coder-annotator:set-picking", picking: false, hint: true },
 					frameOrigin,
 				);
 			}
@@ -411,7 +411,10 @@ describe("PortPreviewPanel annotations", () => {
 			await settled();
 			expect(onSend).not.toHaveBeenCalled();
 			expect(postMessage).not.toHaveBeenCalledWith(
-				{ type: "coder-annotator:set-picking", picking: true },
+				expect.objectContaining({
+					type: "coder-annotator:set-picking",
+					picking: true,
+				}),
 				frameOrigin,
 			);
 			await userEvent.click(annotateButton());
@@ -516,6 +519,28 @@ describe("PortPreviewPanel annotations", () => {
 		expect(onSend.mock.calls[2][0]).toContain("> Then this");
 	});
 
+	it("stops asking for the first-run hint once it was dismissed", async () => {
+		window.localStorage.removeItem("coder.annotator.hint-dismissed");
+		const { frame, frameOrigin, receive } = renderPanel();
+		await requestOverlay();
+		receive({ type: "coder-annotator:ready" });
+		receive({ type: "coder-annotator:hint-dismissed" });
+		expect(window.localStorage.getItem("coder.annotator.hint-dismissed")).toBe(
+			"1",
+		);
+
+		const postMessage = vi.spyOn(frameWindow(frame()), "postMessage");
+		await act(async () => {
+			receive({ type: "coder-annotator:state", picking: true });
+		});
+		await userEvent.keyboard("{Escape}");
+		expect(postMessage).toHaveBeenLastCalledWith(
+			{ type: "coder-annotator:set-picking", picking: false, hint: false },
+			frameOrigin,
+		);
+		window.localStorage.removeItem("coder.annotator.hint-dismissed");
+	});
+
 	it("ignores the frame until the user requests the overlay", () => {
 		const { receive, onSend } = renderPanel();
 		receive({ type: "coder-annotator:ready" });
@@ -609,7 +634,7 @@ describe("PortPreviewPanel annotations", () => {
 		const postMessage = vi.spyOn(frameWindow(frame()), "postMessage");
 		receive({ type: "coder-annotator:ready" });
 		expect(postMessage).toHaveBeenCalledWith(
-			{ type: "coder-annotator:set-picking", picking: true },
+			{ type: "coder-annotator:set-picking", picking: true, hint: true },
 			frameOrigin,
 		);
 	});
@@ -824,7 +849,7 @@ describe("PortPreviewPanel annotations", () => {
 			}),
 		);
 		expect(postMessage).toHaveBeenCalledWith(
-			{ type: "coder-annotator:set-picking", picking: true },
+			{ type: "coder-annotator:set-picking", picking: true, hint: true },
 			new URL(frame.src).origin,
 		);
 	});
@@ -861,7 +886,7 @@ describe("PortPreviewPanel annotations", () => {
 
 		await userEvent.click(annotateButton());
 		expect(postMessage).toHaveBeenCalledWith(
-			{ type: "coder-annotator:set-picking", picking: true },
+			{ type: "coder-annotator:set-picking", picking: true, hint: true },
 			frameOrigin,
 		);
 		expect(annotateButton()).toHaveAttribute("aria-pressed", "true");
@@ -882,7 +907,7 @@ describe("PortPreviewPanel annotations", () => {
 		const postMessage = vi.spyOn(frameWindow(frame()), "postMessage");
 		await userEvent.keyboard("{Escape}");
 		expect(postMessage).toHaveBeenCalledWith(
-			{ type: "coder-annotator:set-picking", picking: false },
+			{ type: "coder-annotator:set-picking", picking: false, hint: true },
 			frameOrigin,
 		);
 		expect(annotateButton()).toHaveAttribute("aria-pressed", "false");
