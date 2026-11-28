@@ -30,6 +30,7 @@ import {
 import { WorkspaceIframe } from "#/modules/apps/WorkspaceAppFrame";
 import { portForwardURL } from "#/utils/portForward";
 import { useAnnotatorBridge } from "../../hooks/useAnnotatorBridge";
+import { parseEditedFiles, sourceFileWasEdited } from "../../utils/editedFiles";
 import {
 	isTabPopoutMessage,
 	postToTabPopout,
@@ -142,6 +143,19 @@ function dropQueuedSends(queue: SendQueue): number {
 	return queue.pending - (queue.sending ? 1 : 0);
 }
 
+// Elements from annotations sent this turn, highlighted in the preview
+// until the agent's turn ends. `started` guards against a send resolving
+// before the chat reports the turn as running; further annotations sent
+// during the same turn accumulate rather than replace each other.
+type WorkingAnnotations = {
+	items: HighlightItem[];
+	// Source file behind each element, keyed by annotation id, when the app
+	// exposed one. Limits the end-of-turn acknowledgement to the elements
+	// the agent's edits actually reached.
+	sources: Record<string, string>;
+	started: boolean;
+};
+
 export const PortPreviewPanel: React.FC<{
 	chatId: string;
 	workspace: Workspace;
@@ -158,6 +172,10 @@ export const PortPreviewPanel: React.FC<{
 	// window is opened to annotate in, so annotate mode starts on, and the
 	// control that opens the window becomes a plain link to the app.
 	isPopoutWindow?: boolean;
+	// Files the agent edited this turn, newline-joined. When the turn ends,
+	// annotations whose element came from one of them are acknowledged as
+	// changed instead of just clearing.
+	editedFiles?: string;
 	onSendToolMessage?: (message: string) => Promise<SubmitChatTurnResult>;
 	annotatorReadyTimeoutMs?: number;
 }> = ({
@@ -169,6 +187,7 @@ export const PortPreviewPanel: React.FC<{
 	canAnnotate = false,
 	isAgentWorking = false,
 	isPopoutWindow = false,
+	editedFiles = "",
 	onSendToolMessage,
 	annotatorReadyTimeoutMs,
 }) => {
@@ -207,14 +226,7 @@ export const PortPreviewPanel: React.FC<{
 	// panel steps aside rather than run a second preview of the same app,
 	// and relays the window's sends through this chat's composer.
 	const [hasPopout, setHasPopout] = useState(false);
-	// Elements from annotations sent this turn, highlighted in the preview
-	// until the agent's turn ends. `started` guards against a send resolving
-	// before the chat reports the turn as running; further annotations sent
-	// during the same turn accumulate rather than replace each other.
-	const [workingOn, setWorkingOn] = useState<{
-		items: HighlightItem[];
-		started: boolean;
-	}>();
+	const [workingOn, setWorkingOn] = useState<WorkingAnnotations>();
 
 	// Each saved comment goes straight to the agent as its own message.
 	// The shimmer starts once the send is accepted.
@@ -231,9 +243,16 @@ export const PortPreviewPanel: React.FC<{
 			selector: element.selector,
 			url: submission.page.url,
 		}));
+		const sources: Record<string, string> = {};
+		for (const { id, element } of submission.annotations) {
+			if (element.sourceLocation) {
+				sources[id] = element.sourceLocation;
+			}
+		}
 		const accepted = enqueueSend(sendQueueRef.current, message, () =>
 			setWorkingOn((current) => ({
 				items: [...(current?.items ?? []), ...items],
+				sources: { ...current?.sources, ...sources },
 				started: current?.started ?? false,
 			})),
 		);
@@ -265,7 +284,7 @@ export const PortPreviewPanel: React.FC<{
 		onSubmit: handleSubmit,
 		onRevoke: handleRevoke,
 	});
-	const { highlight, clearHighlights, setPicking } = bridge;
+	const { highlight, setPicking } = bridge;
 	const canSendMessage = onSendToolMessage !== undefined;
 	const stopAnnotating = useEffectEvent(() => {
 		if (bridge.requested) {
@@ -333,9 +352,13 @@ export const PortPreviewPanel: React.FC<{
 	// The window renders the same panel and needs the same chat state.
 	useEffect(() => {
 		if (hasPopout) {
-			postToTabPopout(tab.id, { type: "chat-state", isAgentWorking });
+			postToTabPopout(tab.id, {
+				type: "chat-state",
+				isAgentWorking,
+				editedFiles,
+			});
 		}
-	}, [hasPopout, tab.id, isAgentWorking]);
+	}, [hasPopout, tab.id, isAgentWorking, editedFiles]);
 
 	// Same window geometry as the desktop popout. Naming the window means a
 	// second click focuses and reloads the one already open.
@@ -382,6 +405,31 @@ export const PortPreviewPanel: React.FC<{
 		bridge.setPicking(!bridge.requested);
 	};
 
+	// The turn is over: acknowledge the annotations whose source file the
+	// agent edited and clear the rest. An event rather than an effect
+	// dependency, so edits landing mid-turn do not re-send the highlights
+	// and restart the shimmer.
+	const finishTurn = useEffectEvent((finished: WorkingAnnotations) => {
+		const edited = parseEditedFiles(editedFiles);
+		const changed = finished.items
+			.filter((item) =>
+				sourceFileWasEdited(
+					// Ids come from the page; only its own entries count, never
+					// anything a plain object inherits.
+					Object.hasOwn(finished.sources, item.id)
+						? finished.sources[item.id]
+						: undefined,
+					edited,
+				),
+			)
+			.map((item) => item.id);
+		if (changed.length > 0) {
+			bridge.resolveHighlights(changed);
+		} else {
+			bridge.clearHighlights();
+		}
+	});
+
 	// The overlay owns the drawing; this only tells it what to show. Runs
 	// again when the overlay reloads so a pending shimmer is restored.
 	useEffect(() => {
@@ -396,7 +444,7 @@ export const PortPreviewPanel: React.FC<{
 			return;
 		}
 		if (workingOn.started) {
-			clearHighlights();
+			finishTurn(workingOn);
 			setWorkingOn(undefined);
 			return;
 		}
@@ -404,7 +452,7 @@ export const PortPreviewPanel: React.FC<{
 		// no-op, or the turn ended before the status reached us), drop it.
 		const timer = setTimeout(() => setWorkingOn(undefined), turnStartGraceMs);
 		return () => clearTimeout(timer);
-	}, [workingOn, isAgentWorking, bridge.ready, highlight, clearHighlights]);
+	}, [workingOn, isAgentWorking, bridge.ready, highlight]);
 
 	// Everything the control shows about annotate mode comes from what the
 	// dashboard asked for, never from what the overlay reports: the page

@@ -60,6 +60,7 @@ import { getWorkspaceStatus, StatusIcon } from "../components/StatusIcon";
 import { ChatWorkspaceContext } from "../context/ChatWorkspaceContext";
 import { TerminalClientSessionContext } from "../context/TerminalClientSessionContext";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
+import { selectEditedFilesThisTurn } from "../utils/editedFiles";
 import {
 	getPersistedOverviewCardOpen,
 	savePersistedOverviewCardOpen,
@@ -247,6 +248,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	const isArchived = chat.archived;
 	const liveChatStatus =
 		useChatSelector(store, selectChatStatus) ?? chat.status;
+	const editedFilesThisTurn = useChatSelector(store, selectEditedFilesThisTurn);
 	const [chatFullWidth] = useChatFullWidth();
 	const { isEmbedded } = useEmbedContext();
 	const overviewCardId = useId();
@@ -890,6 +892,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 											liveChatStatus === "running" ||
 											liveChatStatus === "interrupting"
 										}
+										editedFiles={editedFilesThisTurn}
 										onSendToolMessage={
 											!isInputDisabled && !isOtherUserReadOnly
 												? onSendToolMessage

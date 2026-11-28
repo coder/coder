@@ -15,6 +15,7 @@ type UserTabPanelProps = {
 	wildcardHostname: string;
 	canAnnotate: boolean;
 	isAgentWorking: boolean;
+	editedFiles: string;
 	onSendToolMessage?: (message: string) => Promise<SubmitChatTurnResult>;
 	isPending: boolean;
 	onTerminalReady: (tabId: string) => void;
@@ -32,6 +33,7 @@ export const UserTabPanel: React.FC<UserTabPanelProps> = ({
 	wildcardHostname,
 	canAnnotate,
 	isAgentWorking,
+	editedFiles,
 	onSendToolMessage,
 	isPending,
 	onTerminalReady,
@@ -78,6 +80,7 @@ export const UserTabPanel: React.FC<UserTabPanelProps> = ({
 					tab={tab}
 					canAnnotate={canAnnotate}
 					isAgentWorking={isAgentWorking}
+					editedFiles={editedFiles}
 					onSendToolMessage={onSendToolMessage}
 				/>
 			);

@@ -13,6 +13,7 @@ const sendTimeoutMs = 10_000;
 
 type ChatState = {
 	isAgentWorking: boolean;
+	editedFiles: string;
 };
 
 type TabPopoutWindow = {
@@ -31,6 +32,7 @@ type TabPopoutWindow = {
 export function useTabPopoutWindow(tabId: string): TabPopoutWindow {
 	const [chatState, setChatState] = useState<ChatState>({
 		isAgentWorking: false,
+		editedFiles: "",
 	});
 	const channelRef = useRef<BroadcastChannel>(null);
 	const pendingSendsRef = useRef(
@@ -62,7 +64,10 @@ export function useTabPopoutWindow(tabId: string): TabPopoutWindow {
 					window.close();
 					break;
 				case "chat-state":
-					setChatState({ isAgentWorking: message.isAgentWorking });
+					setChatState({
+						isAgentWorking: message.isAgentWorking,
+						editedFiles: message.editedFiles,
+					});
 					break;
 				case "send-result": {
 					const settle = pendingSendsRef.current.get(message.id);
