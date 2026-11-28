@@ -1,5 +1,6 @@
 import { cn } from "cn";
 import { AlertTriangleIcon, ClipboardPasteIcon, XIcon } from "lucide-react";
+import { useId } from "react";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { toast } from "#/components/Toaster/toast";
 import {
@@ -68,6 +69,7 @@ export const AttachmentPreview: React.FC<{
 	onInlineText,
 }) => {
 	const textAttachmentRequest = useLatestAbortController();
+	const previewIdPrefix = useId();
 
 	if (attachments.length === 0) return null;
 
@@ -134,6 +136,7 @@ export const AttachmentPreview: React.FC<{
 					const hasTextAttachment =
 						file.type === "text/plain" &&
 						(textContent !== undefined || textFileId !== undefined);
+					const previewId = `${previewIdPrefix}-${index}`;
 					return (
 						<div
 							// Key combines file metadata with index as a fallback for
@@ -154,6 +157,7 @@ export const AttachmentPreview: React.FC<{
 								<button
 									type="button"
 									aria-label={`View ${file.name}`}
+									aria-describedby={previewId}
 									className="flex h-16 w-28 flex-col items-start justify-start overflow-hidden rounded-md bg-surface-tertiary p-2 text-left transition-colors hover:bg-surface-quaternary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
 									onClick={async () => {
 										const nextContent = await loadTextAttachmentContent(
@@ -165,7 +169,10 @@ export const AttachmentPreview: React.FC<{
 										}
 									}}
 								>
-									<span className="line-clamp-3 w-full font-mono text-2xs text-content-secondary">
+									<span
+										id={previewId}
+										className="line-clamp-3 w-full font-mono text-2xs text-content-secondary"
+									>
 										{formatTextAttachmentPreview(textContent ?? "")}
 									</span>
 								</button>
@@ -203,7 +210,7 @@ export const AttachmentPreview: React.FC<{
 										<div
 											className="absolute inset-0 flex items-center justify-center rounded-md bg-overlay"
 											role="img"
-											aria-label="Upload error"
+											aria-label={`Upload error: ${uploadState.error ?? "Upload failed"}`}
 										>
 											<AlertTriangleIcon className="size-5 text-content-warning" />
 										</div>

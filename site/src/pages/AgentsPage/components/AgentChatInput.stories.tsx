@@ -1432,6 +1432,10 @@ export const LongWorkspaceNameMobile: Story = {
 		for (const el of within(document.body).queryAllByText(
 			"Workspace running",
 		)) {
+			// Screen-reader-only status text is expected; only tooltips must stay hidden.
+			if (el.classList.contains("sr-only")) {
+				continue;
+			}
 			expect(el).not.toBeVisible();
 		}
 		await userEvent.click(pillTrigger);

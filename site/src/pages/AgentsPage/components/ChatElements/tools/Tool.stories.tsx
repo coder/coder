@@ -384,7 +384,7 @@ export const ExecuteError: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(
-			canvas.getByRole("button", { name: "Expand command" }),
+			canvas.getByRole("button", { name: /^Expand command/ }),
 		);
 	},
 };
@@ -485,7 +485,7 @@ export const ExecuteAlwaysCollapsed: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const commandButton = canvas.getByRole("button", {
-			name: "Expand command",
+			name: /^Expand command/,
 		});
 		await userEvent.click(commandButton);
 	},
@@ -509,7 +509,7 @@ export const ExecuteLongCommandCollapsed: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const commandButton = canvas.getByRole("button", {
-			name: "Expand command",
+			name: /^Expand command/,
 		});
 		expect(commandButton).toHaveTextContent(`Ran ${longExecuteCommand}`);
 		expect(commandButton).toHaveAttribute("aria-expanded", "false");
@@ -531,7 +531,7 @@ export const ProcessOutputAlwaysCollapsed: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(
-			canvas.getByRole("button", { name: "Expand process output" }),
+			canvas.getByRole("button", { name: /^Expand process output/ }),
 		);
 	},
 };

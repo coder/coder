@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import { RotateCcwIcon, TriangleAlertIcon } from "lucide-react";
-import { useRef, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { getErrorMessage } from "#/api/errors";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
@@ -282,6 +282,7 @@ const CompactionThresholdRow: React.FC<CompactionThresholdRowProps> = ({
 	onReset,
 }) => {
 	const inputRef = useRef<HTMLInputElement>(null);
+	const percentSuffixId = useId();
 	const { isSavedVisible, showSavedState } = useTemporarySavedState();
 	const isDirty = isThresholdDraftDirty(draft, existingOverride);
 	const hasOverride = existingOverride !== undefined;
@@ -391,6 +392,7 @@ const CompactionThresholdRow: React.FC<CompactionThresholdRowProps> = ({
 								<Input
 									ref={inputRef}
 									aria-label={`${modelName} compaction threshold for ${organizationName}`}
+									aria-describedby={percentSuffixId}
 									aria-invalid={isInvalid || undefined}
 									type="text"
 									min={0}
@@ -408,6 +410,7 @@ const CompactionThresholdRow: React.FC<CompactionThresholdRowProps> = ({
 									readOnly={isThisModelMutating}
 								/>
 								<span
+									id={percentSuffixId}
 									aria-hidden="true"
 									className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-xs text-content-secondary"
 								>

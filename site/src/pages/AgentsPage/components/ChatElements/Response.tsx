@@ -220,7 +220,8 @@ const createComponents = (
 			}
 			return (
 				<span
-					aria-hidden="true"
+					role="img"
+					aria-label={checked ? "Checked" : "Unchecked"}
 					className={cn(
 						"mr-2 inline-flex size-4 shrink-0 items-center justify-center",
 						"rounded-sm border",

@@ -85,7 +85,7 @@ export const ExecuteTool: React.FC<ExecuteToolProps> = ({
 			hasContent
 			defaultView={defaultView}
 			ariaLabel={(expanded) =>
-				expanded ? "Collapse command" : "Expand command"
+				`${expanded ? "Collapse" : "Expand"} command: ${commandLabel}${durationSuffix}${isRunning ? ", running" : ""}`
 			}
 		>
 			<ToolCall.HeaderLayout>
@@ -106,7 +106,13 @@ export const ExecuteTool: React.FC<ExecuteToolProps> = ({
 					{killedBySignal && !isRunning && (
 						<Tooltip>
 							<TooltipTrigger asChild>
-								<OctagonXIcon className="size-3.5 shrink-0 text-content-secondary" />
+								<span
+									aria-label={signalTooltipLabel(killedBySignal)}
+									role="img"
+									className="flex shrink-0 items-center text-content-secondary"
+								>
+									<OctagonXIcon aria-hidden className="size-3.5 shrink-0" />
+								</span>
 							</TooltipTrigger>
 							<TooltipContent>
 								{signalTooltipLabel(killedBySignal)}

@@ -349,6 +349,7 @@ const ToolBadge: React.FC<{
 						>
 							{badge.statusIcon}
 							<span className="truncate">{badge.name}</span>
+							<span className="sr-only">, {badge.statusLabel}</span>
 						</Link>
 						{onRemoveWorkspace && (
 							<BadgeDismissButton

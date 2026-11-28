@@ -51,6 +51,8 @@ const ContextResourceRow: React.FC<ContextResourceRowProps> = ({
 				</span>
 			)}
 			<span className="truncate">{name}</span>
+			{title && title !== name && <span className="sr-only"> ({title})</span>}
+			{description && <span className="sr-only">: {description}</span>}
 		</div>
 	);
 	return description ? (

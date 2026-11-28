@@ -5,7 +5,7 @@ import {
 	FileIcon,
 	FileTextIcon,
 } from "lucide-react";
-import { useState } from "react";
+import { useId, useState } from "react";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	Tooltip,
@@ -229,11 +229,18 @@ const AttachmentFallbackTile: React.FC<{
 	className?: string;
 }> = ({ state, labels, className = "size-16" }) => {
 	const label = state.kind === "expired" ? labels.expired : labels.failed;
+	// Expired tiles explain the deletion and failed tiles surface the error
+	// detail, both as a tooltip and a screen reader description. A bare
+	// failure (e.g. a base64 decode error) has no detail and stays plain.
+	const tooltipBody =
+		state.kind === "expired" ? expiredAttachmentExplanation : state.detail;
+	const detailId = useId();
 
 	const tile = (
 		<div
 			role="img"
 			aria-label={label}
+			aria-describedby={tooltipBody ? detailId : undefined}
 			className={cn(
 				"flex flex-col items-center justify-center gap-1 rounded-md border bg-surface-tertiary px-1 text-center text-2xs text-content-secondary",
 				className,
@@ -244,16 +251,14 @@ const AttachmentFallbackTile: React.FC<{
 				aria-hidden="true"
 			/>
 			<span className="leading-tight">{label}</span>
+			{tooltipBody && (
+				<span id={detailId} className="sr-only">
+					{tooltipBody}
+				</span>
+			)}
 		</div>
 	);
 
-	// Only surface a tooltip when we have something to add:
-	// - "expired" explains why the file is gone.
-	// - "failed" with a detail surfaces the API error or network reason.
-	// A bare "failed" (e.g. an inline base64 decode failure, where the
-	// browser exposes nothing useful) stays a plain tile.
-	const tooltipBody =
-		state.kind === "expired" ? expiredAttachmentExplanation : state.detail;
 	if (!tooltipBody) {
 		return tile;
 	}
@@ -275,12 +280,14 @@ const InlineTextAttachmentButton: React.FC<{
 	isPlaceholder: boolean;
 	icon?: React.ReactNode;
 }> = ({ content, fileName, onPreview, isPlaceholder, icon }) => {
+	const previewId = useId();
 	return (
 		<button
 			type="button"
 			aria-label={
 				fileName !== "Pasted text" ? `View ${fileName}` : "View text attachment"
 			}
+			aria-describedby={previewId}
 			className="inline-flex h-16 max-w-sm items-center gap-2 rounded-md bg-surface-tertiary px-3 py-2 text-left transition-colors hover:bg-surface-quaternary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
 			onClick={(event) => {
 				event.stopPropagation();
@@ -294,6 +301,7 @@ const InlineTextAttachmentButton: React.FC<{
 				/>
 			)}
 			<span
+				id={previewId}
 				className={cn(
 					"line-clamp-2 min-w-0 text-content-secondary",
 					isPlaceholder ? "text-sm" : "font-mono text-xs",
