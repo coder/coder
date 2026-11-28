@@ -477,4 +477,24 @@ describe("TerminalPage", () => {
 		});
 		expect(document.head.querySelector('link[rel="icon"]')).toBeNull();
 	});
+
+	it("uses the title set by the shell and restores the default when cleared", async () => {
+		const ws = createWorkspaceTerminalWebSocket();
+		await renderTerminal();
+		await ws.nextMessage;
+
+		ws.send("\x1b]0;my-project\x07");
+		await waitFor(() => {
+			expect(document.title).toBe(
+				`my-project - ${MockWorkspace.owner_name}/${MockWorkspace.name} - Coder`,
+			);
+		});
+
+		ws.send("\x1b]2;\x07");
+		await waitFor(() => {
+			expect(document.title).toBe(
+				`Terminal - ${MockWorkspace.owner_name}/${MockWorkspace.name} - Coder`,
+			);
+		});
+	});
 });

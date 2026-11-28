@@ -37,6 +37,7 @@ const TerminalPage: React.FC = () => {
 	const [connectionStatus, setConnectionStatus] =
 		useState<ConnectionStatus>("initializing");
 	const [commandConfirmed, setCommandConfirmed] = useState(false);
+	const [shellTitle, setShellTitle] = useState("");
 	const [searchParams] = useSearchParams();
 	const isDebugging = searchParams.has("debug");
 	// The reconnection token is a unique token that identifies
@@ -183,7 +184,7 @@ const TerminalPage: React.FC = () => {
 			{workspace.data && (
 				<title>
 					{pageTitle(
-						app?.display_name || "Terminal",
+						shellTitle || app?.display_name || "Terminal",
 						`${workspace.data.owner_name}/${workspace.data.name}`,
 					)}
 				</title>
@@ -205,6 +206,7 @@ const TerminalPage: React.FC = () => {
 					containerName={containerName}
 					containerUser={containerUser}
 					onStatusChange={setConnectionStatus}
+					onTitleChange={setShellTitle}
 					onError={handleTerminalError}
 					reconnectionToken={reconnectionToken}
 					sessionId={sessionId}
