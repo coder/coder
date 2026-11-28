@@ -20,6 +20,7 @@ import {
 import { getErrorMessage, isApiError } from "#/api/errors";
 import type { Workspace, WorkspaceAgent } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
+import { Spinner } from "#/components/Spinner/Spinner";
 import { toast } from "#/components/Toaster/toast";
 import {
 	Tooltip,
@@ -461,7 +462,9 @@ export const PortPreviewPanel: React.FC<{
 											: "aria-disabled:cursor-not-allowed aria-disabled:text-content-disabled aria-disabled:hover:text-content-disabled"
 									}
 								>
-									<MessageSquarePlusIcon />
+									<Spinner loading={bridge.loading} size="sm">
+										<MessageSquarePlusIcon />
+									</Spinner>
 								</Button>
 							</TooltipTrigger>
 							<TooltipContent side="bottom">
