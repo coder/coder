@@ -284,6 +284,49 @@ Claude Code doesn't show it to the developer yet.
 
 Confirm that Anthropic and Coder emails match before you onboard users, especially when your identity provider uses a different primary address.
 
+## Keep sessions on self-hosted environments
+
+Agent Relay only serves sessions that a developer sends to a self-hosted environment.
+Anthropic offers settings that keep sessions on self-hosted environments, but none of them covers every Claude Code surface:
+
+- **Cloud sessions:** An Owner can hide Anthropic-hosted environments for the whole organization on the [Cloud environments](https://claude.ai/admin-settings/cloud-environments) admin page.
+  Self-hosted environments are then the only choices in the environment picker.
+- **Claude Desktop local sessions:** Set `disableDesktopLocalSessions` to `true` in managed settings to turn off Code sessions on the developer's computer.
+  This requires Claude Desktop v1.37937.0 or later.
+- **Claude Desktop SSH sessions:** Turning off local sessions leaves SSH sessions available.
+  Set `sshHostAllowlist` to an empty array in managed settings to turn them off too.
+  Claude Desktop reads this setting from managed settings only.
+  This requires Claude Desktop v2.26454.0 or later.
+- **Claude Code CLI and IDE extensions:** Neither reads these settings, so developers can still run Claude Code on their own computers.
+- **Cowork:** Neither Desktop setting applies to Cowork sessions or Cowork scheduled tasks in Claude Desktop, which run on the developer's computer.
+- **Code Review and Claude Security:** These sessions always run on Anthropic infrastructure, not in self-hosted environments.
+  Keep them off by leaving the features turned off.
+- **Remote Control:** Remote Control lets a developer drive a session on their own computer from claude.ai, the Claude mobile apps, or Claude Desktop.
+  On Team and Enterprise plans, Remote Control stays off until an Owner turns it on in [Claude Code admin settings](https://claude.ai/admin-settings/claude-code).
+  To turn it off on a device, set `disableRemoteControl` to `true` in managed settings.
+
+The following managed settings turn off both local and SSH sessions in Claude Desktop:
+
+```json
+{
+  "disableDesktopLocalSessions": true,
+  "sshHostAllowlist": []
+}
+```
+
+Deliver these keys from the highest-ranked managed source on each device, such as server-managed settings if your organization uses them.
+By default, Claude Desktop reads the keys from that source only and ignores them in lower-ranked sources without a warning.
+If you set `managedSourcesBehavior` to `"merge"`, an empty `sshHostAllowlist` in one source doesn't turn off SSH for hosts that another source allows.
+Refer to [How Claude Code combines managed sources](https://code.claude.com/docs/en/managed-settings#how-claude-code-combines-managed-sources).
+
+If you deliver the keys as server-managed settings, also put them in the highest-ranked MDM policy or managed settings file on each device.
+Claude Desktop doesn't cache server-managed settings, so the device's copy applies until Desktop fetches them.
+
+If you deliver the settings as server-managed settings, have developers quit and reopen Claude Desktop, which fetches them at launch.
+The entry for the developer's computer in the environment picker then appears grayed out with the tooltip **Disabled by your organization**.
+
+Refer to Anthropic's [Deploy self-hosted environments to production](https://code.claude.com/docs/en/self-hosted-environments-deploy), [Turn off local sessions and distribute SSH connections](https://code.claude.com/docs/en/desktop#turn-off-local-sessions-and-distribute-ssh-connections), and [Restrict which SSH hosts users can connect to](https://code.claude.com/docs/en/desktop#restrict-which-ssh-hosts-users-can-connect-to) for details.
+
 ## Source control
 
 Source control for a session has two independent sides, and you must configure both:
