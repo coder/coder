@@ -2383,6 +2383,96 @@ export interface ChatAutoArchiveDaysResponse {
 	readonly auto_archive_days: number;
 }
 
+// From codersdk/chatautomations.go
+/**
+ * ChatAutomation is a schedule that sends a saved prompt to a chat as its
+ * owner.
+ */
+export interface ChatAutomation {
+	readonly id: string;
+	readonly organization_id: string;
+	readonly owner_id: string;
+	readonly owner: MinimalUser;
+	readonly name: string;
+	readonly kind: ChatAutomationKind;
+	readonly enabled: boolean;
+	readonly target_mode: ChatAutomationTargetMode;
+	readonly target_chat_id: string | null;
+	readonly target_chat: ChatAutomationChat | null;
+	readonly created_by_chat_id: string | null;
+	readonly created_by_chat: ChatAutomationChat | null;
+	/**
+	 * NewChatModelConfigID and ProjectID apply to new_chat automations.
+	 */
+	readonly new_chat_model_config_id: string | null;
+	readonly project_id: string | null;
+	readonly prompt: string;
+	readonly schedule_cron: string | null;
+	readonly schedule_time_zone: string | null;
+	/**
+	 * ScheduleNextRunAt is the occurrence that the scheduler runs next.
+	 */
+	readonly schedule_next_run_at: string | null;
+	/**
+	 * NextRunTimes lists up to five upcoming runs of an enabled schedule.
+	 */
+	readonly next_run_times: readonly string[];
+	/**
+	 * LastRun is null until the first run.
+	 */
+	readonly last_run: ChatAutomationLastRun | null;
+	readonly created_at: string;
+	readonly updated_at: string;
+}
+
+// From codersdk/chatautomations.go
+/**
+ * ChatAutomationChat identifies a chat that an automation refers to. The API
+ * sets it only when the caller can read the chat.
+ */
+export interface ChatAutomationChat {
+	readonly id: string;
+	readonly title: string;
+	readonly archived: boolean;
+}
+
+// From codersdk/chatautomations.go
+export type ChatAutomationKind = "schedule";
+
+export const ChatAutomationKinds: ChatAutomationKind[] = ["schedule"];
+
+// From codersdk/chatautomations.go
+/**
+ * ChatAutomationLastRun is the latest run of an automation. It is one
+ * record, not a history.
+ */
+export interface ChatAutomationLastRun {
+	readonly at: string;
+	readonly outcome: ChatAutomationRunOutcome;
+	/**
+	 * Reason says why a run was skipped or refused. It is empty otherwise.
+	 */
+	readonly reason: string;
+	readonly chat_id: string | null;
+}
+
+// From codersdk/chatautomations.go
+export type ChatAutomationRunOutcome = "accepted" | "refused" | "skipped";
+
+export const ChatAutomationRunOutcomes: ChatAutomationRunOutcome[] = [
+	"accepted",
+	"refused",
+	"skipped",
+];
+
+// From codersdk/chatautomations.go
+export type ChatAutomationTargetMode = "existing_chat" | "new_chat";
+
+export const ChatAutomationTargetModes: ChatAutomationTargetMode[] = [
+	"existing_chat",
+	"new_chat",
+];
+
 // From codersdk/chats.go
 export type ChatBusyBehavior = "queue" | "steer";
 
