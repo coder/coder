@@ -260,7 +260,7 @@ func Test_stripQueryParam(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, removed := stripQueryParam(tc.rawQuery, key)
+			got, _, removed := stripQueryParam(tc.rawQuery, key)
 			require.Equal(t, tc.want, got)
 			require.Equal(t, tc.wantRemoved, removed)
 		})

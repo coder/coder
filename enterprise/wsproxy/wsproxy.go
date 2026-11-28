@@ -337,6 +337,7 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 
 		DisablePathApps: opts.DisablePathApps,
 		CookiesConfig:   opts.CookieConfig,
+		Experiments:     opts.Experiments,
 
 		AgentProvider:            agentProvider,
 		StatsCollector:           workspaceapps.NewStatsCollector(opts.StatsCollectorOptions),

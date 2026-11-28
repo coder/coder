@@ -5553,6 +5553,7 @@ const (
 	ExperimentAIGatewayReverseProxy     Experiment = "ai-gateway-reverse-proxy"    // Uses stateless reverse proxy routing when MCP injection is not configured.
 	ExperimentChatProjectSharing        Experiment = "chat-project-sharing"        // Enables sharing agent chat projects with other users and groups.
 	ExperimentChatVirtualDesktop        Experiment = "chat-virtual-desktop"        // Enables virtual desktop and computer use for agents.
+	ExperimentChatUIAnnotations         Experiment = "chat-ui-annotations"         // Injects the UI annotation overlay into app previews opened from agent chats.
 	ExperimentAgentLifecycleHooks       Experiment = "agent-lifecycle-hooks"       // Enables chat lifecycle hook webhooks for agent chats.
 	ExperimentChatInlineMCPServers      Experiment = "chat-inline-mcp-servers"     // Enables inline MCP servers declared on POST /chats.
 	ExperimentEnableAIWorkspaceDebug    Experiment = "enable-ai-workspace-debug"   // Enables debugging failed workspace builds with Coder Agents.
@@ -5586,6 +5587,8 @@ func (e Experiment) DisplayName() string {
 		return "Chat Project Sharing"
 	case ExperimentChatVirtualDesktop:
 		return "Chat Virtual Desktop"
+	case ExperimentChatUIAnnotations:
+		return "Chat UI Annotations"
 	case ExperimentAgentLifecycleHooks:
 		return "Agent Lifecycle Hooks"
 	case ExperimentChatInlineMCPServers:
@@ -5619,6 +5622,7 @@ var ExperimentsKnown = Experiments{
 	ExperimentAIGatewayReverseProxy,
 	ExperimentChatProjectSharing,
 	ExperimentChatVirtualDesktop,
+	ExperimentChatUIAnnotations,
 	ExperimentAgentLifecycleHooks,
 	ExperimentChatInlineMCPServers,
 	ExperimentEnableAIWorkspaceDebug,
