@@ -10592,7 +10592,7 @@ func TestUserSecretsSoftDeleteTrigger(t *testing.T) {
 func TestChatAutomationsSoftDeleteTrigger(t *testing.T) {
 	t.Parallel()
 
-	db, _ := dbtestutil.NewDB(t)
+	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
 	ctx := testutil.Context(t, testutil.WaitMedium)
 
 	org := dbgen.Organization(t, db, database.Organization{})
@@ -10608,7 +10608,7 @@ func TestChatAutomationsSoftDeleteTrigger(t *testing.T) {
 	_, err = db.GetChatAutomationByID(ctx, keptAutomation.ID)
 	require.NoError(t, err)
 
-	_, err = db.InsertChatAutomation(ctx, database.InsertChatAutomationParams{
+	params := database.InsertChatAutomationParams{
 		OrganizationID:   org.ID,
 		OwnerID:          deleted.ID,
 		Name:             "after-delete",
@@ -10617,8 +10617,29 @@ func TestChatAutomationsSoftDeleteTrigger(t *testing.T) {
 		TargetMode:       database.ChatAutomationTargetModeExistingChat,
 		ScheduleCron:     sql.NullString{String: "0 9 * * *", Valid: true},
 		ScheduleTimeZone: sql.NullString{String: "UTC", Valid: true},
-	})
+	}
+	_, err = db.InsertChatAutomation(ctx, params)
 	require.True(t, database.IsCheckViolation(err, database.CheckConstraint("chat_automation_owner_deleted")), "got %v", err)
+
+	// An open insert holds the owner row, so a soft delete cannot run its
+	// cleanup before the new row is visible to it.
+	conn, err := sqlDB.Conn(ctx)
+	require.NoError(t, err)
+	defer conn.Close()
+	_, err = conn.ExecContext(ctx, "SET lock_timeout = '100ms'")
+	require.NoError(t, err)
+	params.OwnerID = kept.ID
+	var softDeleteErr error
+	require.NoError(t, db.InTx(func(tx database.Store) error {
+		if _, err := tx.InsertChatAutomation(ctx, params); err != nil {
+			return err
+		}
+		_, softDeleteErr = conn.ExecContext(ctx, "UPDATE users SET deleted = true WHERE id = $1", kept.ID)
+		return nil
+	}, nil))
+	var pqErr *pq.Error
+	require.ErrorAs(t, softDeleteErr, &pqErr)
+	require.Equal(t, pq.ErrorCode("55P03"), pqErr.Code) // lock_not_available
 }
 
 // TestOrgMembersSoftDeleteTrigger verifies that a user's organization

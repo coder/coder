@@ -142,6 +142,7 @@ func (api *API) registerExperimentalOrganizationChatRoutes(r chi.Router) {
 	r.Route("/chats/automations", func(r chi.Router) {
 		r.Use(api.requireChatAutomationsExperiment)
 		r.Get("/", api.listChatAutomations)
+		r.Post("/", api.postChatAutomation)
 		r.Route("/{automation}", func(r chi.Router) {
 			r.Get("/", api.getChatAutomation)
 			r.Delete("/", api.deleteChatAutomation)
