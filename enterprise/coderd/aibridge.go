@@ -701,11 +701,21 @@ func (api *API) aiBridgeListProviders(rw http.ResponseWriter, r *http.Request) {
 // @Router /api/experimental/ai-gateway/retention [get]
 // @x-apidocgen {"skip": true}
 func (api *API) aiGatewayRetention(rw http.ResponseWriter, r *http.Request) {
-	retention := api.DeploymentValues.AI.BridgeConfig.Retention.Value()
+	retention, _ := api.aiGatewayDataRetention()
 	httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.AIGatewayRetention{
-		// A retention of zero or less disables purging.
-		RetentionMillis: max(retention.Milliseconds(), 0),
+		RetentionMillis: retention.Milliseconds(),
 	})
+}
+
+// aiGatewayDataRetention returns the AI Gateway data retention and whether
+// purging is enabled. A configured retention of zero or less disables purging
+// and is returned as zero.
+func (api *API) aiGatewayDataRetention() (time.Duration, bool) {
+	retention := api.DeploymentValues.AI.BridgeConfig.Retention.Value()
+	if retention <= 0 {
+		return 0, false
+	}
+	return retention, true
 }
 
 // validateInterceptionCursor checks that a pagination cursor refers to an
@@ -1518,9 +1528,8 @@ func (api *API) aiSpendRetainedPeriod(ctx context.Context, rw http.ResponseWrite
 	if !ok {
 		return aiSpendPeriod{}, false
 	}
-	// A retention of zero disables purging.
-	retention := api.DeploymentValues.AI.BridgeConfig.Retention.Value()
-	if retention <= 0 {
+	retention, enabled := api.aiGatewayDataRetention()
+	if !enabled {
 		return period, true
 	}
 	retentionStart := api.Clock.Now().Add(-retention)
