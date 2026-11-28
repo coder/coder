@@ -71,6 +71,11 @@ From your Coder dashboard, select your user avatar, then select the **Copy to cl
 
 ![Copy the deployment ID from the bottom of the user avatar dropdown](../../images/admin/deployment-id-copy-clipboard.png)
 
+### What happens if I add a license that's already installed?
+
+Coder rejects the duplicate and tells you that no action is needed.
+To see installed licenses, run `coder licenses list` or go to **Admin settings** > **Deployment** > **Licenses**.
+
 ### How we calculate license seat consumption
 
 Licenses are consumed based on the status of user accounts.

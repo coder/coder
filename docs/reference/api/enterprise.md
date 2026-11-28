@@ -1340,9 +1340,10 @@ curl -X POST http://coder-server:8080/api/v2/licenses \
 
 ### Responses
 
-| Status | Meaning                                                      | Description | Schema                                         |
-|--------|--------------------------------------------------------------|-------------|------------------------------------------------|
-| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | [codersdk.License](schemas.md#codersdklicense) |
+| Status | Meaning                                                       | Description | Schema                                           |
+|--------|---------------------------------------------------------------|-------------|--------------------------------------------------|
+| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2)  | Created     | [codersdk.License](schemas.md#codersdklicense)   |
+| 409    | [Conflict](https://tools.ietf.org/html/rfc7231#section-6.5.8) | Conflict    | [codersdk.Response](schemas.md#codersdkresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -1436,9 +1437,10 @@ curl -X POST http://coder-server:8080/api/v2/licenses/trial \
 
 ### Responses
 
-| Status | Meaning                                                      | Description | Schema                                         |
-|--------|--------------------------------------------------------------|-------------|------------------------------------------------|
-| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | [codersdk.License](schemas.md#codersdklicense) |
+| Status | Meaning                                                       | Description | Schema                                           |
+|--------|---------------------------------------------------------------|-------------|--------------------------------------------------|
+| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2)  | Created     | [codersdk.License](schemas.md#codersdklicense)   |
+| 409    | [Conflict](https://tools.ietf.org/html/rfc7231#section-6.5.8) | Conflict    | [codersdk.Response](schemas.md#codersdkresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
