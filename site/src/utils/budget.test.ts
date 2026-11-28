@@ -36,8 +36,8 @@ describe("getSeverity", () => {
 		expect(getSeverity(75, 50)).toBe("exceeded");
 	});
 
-	it("treats a zero budget as exceeded once anything is used", () => {
-		expect(getSeverity(0, 0)).toBe("normal");
+	it("treats a zero budget as exceeded even with no usage", () => {
+		expect(getSeverity(0, 0)).toBe("exceeded");
 		expect(getSeverity(5, 0)).toBe("exceeded");
 	});
 
@@ -56,7 +56,7 @@ describe("usageProgressPercentage", () => {
 	});
 
 	it("handles zero budgets and invalid inputs", () => {
-		expect(usageProgressPercentage(0, 0)).toBe(0);
+		expect(usageProgressPercentage(0, 0)).toBe(100);
 		expect(usageProgressPercentage(1, 0)).toBe(100);
 		expect(usageProgressPercentage(Number.NaN, 100)).toBe(0);
 		expect(usageProgressPercentage(1, Number.POSITIVE_INFINITY)).toBe(0);

@@ -27,6 +27,7 @@ import {
 	MockMultiOrgUserOrganizationsAISpendStatus,
 	MockUserAISpendStatus,
 	MockUserOrganizationAISpend,
+	MockUserOrganizationsAISpendStatus,
 	MockUserOwner,
 } from "#/testHelpers/entities";
 import { withDashboardProvider } from "#/testHelpers/storybook";
@@ -77,6 +78,13 @@ const spendPeriodLabel = "Approximate AI spend June 1 - July 1, 2026";
 
 const aiCostControl: { features: FeatureName[] } = {
 	features: ["aibridge"],
+};
+
+// Seeds the per-organization request that the menu always makes, so that
+// single-organization stories don't send it to a server.
+const singleOrgAISpendQuery = {
+	key: meOrganizationsAISpendKey,
+	data: MockUserOrganizationsAISpendStatus,
 };
 
 const meta: Meta<typeof UserDropdown> = {
@@ -138,7 +146,10 @@ const Example: Story = {
 export const WithAISpend: Story = {
 	parameters: {
 		...aiCostControl,
-		queries: [{ key: meAISpendKey, data: MockUserAISpendStatus }],
+		queries: [
+			singleOrgAISpendQuery,
+			{ key: meAISpendKey, data: MockUserAISpendStatus },
+		],
 	},
 	play: async ({ canvasElement, step }) => {
 		await step("shows AI spend", async () => {
@@ -161,6 +172,7 @@ export const AISpendWarning: Story = {
 	parameters: {
 		...aiCostControl,
 		queries: [
+			singleOrgAISpendQuery,
 			{
 				key: meAISpendKey,
 				data: mockWarningAISpend,
@@ -188,6 +200,7 @@ export const AISpendAtLimit: Story = {
 	parameters: {
 		...aiCostControl,
 		queries: [
+			singleOrgAISpendQuery,
 			{
 				key: meAISpendKey,
 				data: mockAtLimitAISpend,
@@ -214,6 +227,7 @@ export const AISpendExceeded: Story = {
 	parameters: {
 		...aiCostControl,
 		queries: [
+			singleOrgAISpendQuery,
 			{
 				key: meAISpendKey,
 				data: mockExceededAISpend,
@@ -241,6 +255,7 @@ export const AISpendUnlimited: Story = {
 	parameters: {
 		...aiCostControl,
 		queries: [
+			singleOrgAISpendQuery,
 			{
 				key: meAISpendKey,
 				data: mockUnlimitedAISpend,
@@ -268,6 +283,7 @@ export const AISpendZeroSpend: Story = {
 	parameters: {
 		...aiCostControl,
 		queries: [
+			singleOrgAISpendQuery,
 			{
 				key: meAISpendKey,
 				data: mockZeroSpendAISpend,
@@ -294,6 +310,7 @@ export const AISpendZeroLimit: Story = {
 	parameters: {
 		...aiCostControl,
 		queries: [
+			singleOrgAISpendQuery,
 			{
 				key: meAISpendKey,
 				data: mockZeroLimitAISpend,
@@ -306,12 +323,16 @@ export const AISpendZeroLimit: Story = {
 			await waitFor(() =>
 				expect(document.body).toHaveTextContent("$0 / $0 USD"),
 			);
+			expect(document.body).toHaveTextContent("Limit exceeded");
+			expect(document.body).toHaveTextContent(
+				"AI requests are paused until July 1, 2026.",
+			);
 			expect(
 				screen.getByRole("progressbar", {
 					hidden: true,
 					name: "AI spend usage",
 				}),
-			).toHaveAttribute("aria-valuenow", "0");
+			).toHaveAttribute("aria-valuenow", "100");
 		});
 	},
 };
@@ -327,8 +348,17 @@ export const MultiOrgAISpend: Story = {
 			},
 		],
 	},
-	play: async ({ canvasElement }) => {
-		await openDropdown(canvasElement);
+	play: async ({ canvasElement, step }) => {
+		await step(
+			"shows the organization_id entry's spend with a selector",
+			async () => {
+				const menu = await openDropdown(canvasElement);
+				expect(
+					await menu.findByRole("menuitem", { name: /^Organization:/ }),
+				).toBeInTheDocument();
+				expect(document.body).toHaveTextContent("$819 / $1,200 USD");
+			},
+		);
 	},
 };
 
@@ -362,8 +392,17 @@ export const MultiOrgAISpendExceeded: Story = {
 			},
 		],
 	},
-	play: async ({ canvasElement }) => {
-		await openDropdown(canvasElement);
+	play: async ({ canvasElement, step }) => {
+		await step("says requests in this organization are paused", async () => {
+			const menu = await openDropdown(canvasElement);
+			expect(
+				await menu.findByRole("menuitem", { name: /^Organization:/ }),
+			).toBeInTheDocument();
+			expect(document.body).toHaveTextContent("Limit exceeded");
+			expect(document.body).toHaveTextContent(
+				"AI requests in this organization are paused until July 1, 2026.",
+			);
+		});
 	},
 };
 
@@ -375,8 +414,14 @@ export const MultiOrgAISpendUnavailable: Story = {
 			{ key: meOrganizationsAISpendKey, data: mockMultiOrgInvalidAISpend },
 		],
 	},
-	play: async ({ canvasElement }) => {
-		await openDropdown(canvasElement);
+	play: async ({ canvasElement, step }) => {
+		await step("keeps the selector when the spend is unavailable", async () => {
+			const menu = await openDropdown(canvasElement);
+			expect(
+				await menu.findByRole("menuitem", { name: /^Organization:/ }),
+			).toBeInTheDocument();
+			expect(document.body).toHaveTextContent("AI spend unavailable");
+		});
 	},
 };
 
@@ -392,7 +437,10 @@ export const AvatarBorderDisabled: Story = {
 export const AvatarBorderNormal: Story = {
 	parameters: {
 		...aiCostControl,
-		queries: [{ key: meAISpendKey, data: MockUserAISpendStatus }],
+		queries: [
+			singleOrgAISpendQuery,
+			{ key: meAISpendKey, data: MockUserAISpendStatus },
+		],
 	},
 	play: async ({ canvasElement, step }) => {
 		await step("shows no severity indicator for normal spend", async () => {
@@ -408,6 +456,7 @@ export const AvatarBorderWarning: Story = {
 	parameters: {
 		...aiCostControl,
 		queries: [
+			singleOrgAISpendQuery,
 			{
 				key: meAISpendKey,
 				data: mockWarningAISpend,
@@ -428,6 +477,7 @@ export const AvatarBorderExceeded: Story = {
 	parameters: {
 		...aiCostControl,
 		queries: [
+			singleOrgAISpendQuery,
 			{
 				key: meAISpendKey,
 				data: mockExceededAISpend,
@@ -448,6 +498,7 @@ export const AISpendHiddenOnInvalidData: Story = {
 	parameters: {
 		...aiCostControl,
 		queries: [
+			singleOrgAISpendQuery,
 			{
 				key: meAISpendKey,
 				data: { ...MockUserAISpendStatus, current_spend_micros: -1 },
@@ -466,6 +517,7 @@ export const AISpendHiddenOnNegativeLimit: Story = {
 	parameters: {
 		...aiCostControl,
 		queries: [
+			singleOrgAISpendQuery,
 			{
 				key: meAISpendKey,
 				data: {

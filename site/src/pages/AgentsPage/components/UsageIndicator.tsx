@@ -90,10 +90,8 @@ export const UsageIndicator: React.FC = () => {
 			id: "ai-spend",
 			title: "AI spend",
 			progressLabel: "AI spend usage",
-			percent: exceeded
-				? 100
-				: usageProgressPercentage(currentSpend, spendLimit),
-			severity: exceeded ? "exceeded" : getSeverity(currentSpend, spendLimit),
+			percent: usageProgressPercentage(currentSpend, spendLimit),
+			severity: getSeverity(currentSpend, spendLimit),
 			icon: <CoinsIcon className="size-3.5" />,
 			hoverLabel: `Spend ${formatCostMicros(currentSpend)}`,
 			detail: (
