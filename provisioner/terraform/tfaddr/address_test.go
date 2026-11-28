@@ -142,6 +142,28 @@ func TestModulePathStepsReturnsCopy(t *testing.T) {
 	require.Equal(t, "outer", path.Steps()[0].Name())
 }
 
+func TestModulePathParent(t *testing.T) {
+	t.Parallel()
+
+	// A parent equals the path parsed from its own address, whatever the
+	// instance keys before it contain.
+	for child, parent := range map[string]string{
+		`module.outer["x.module.y"].module.mid[0].module.inner`: `module.outer["x.module.y"].module.mid[0]`,
+		`module.outer["ü \".module.\" q"].module.inner`:         `module.outer["ü \".module.\" q"]`,
+	} {
+		path, err := tfaddr.ParseModulePath(child)
+		require.NoError(t, err)
+		want, err := tfaddr.ParseModulePath(parent)
+		require.NoError(t, err)
+		require.Equal(t, want, path.Parent(), child)
+	}
+
+	path, err := tfaddr.ParseModulePath("module.outer")
+	require.NoError(t, err)
+	require.Equal(t, tfaddr.ModulePath{}, path.Parent(), "a root child's parent is the root")
+	require.Equal(t, tfaddr.ModulePath{}, tfaddr.ModulePath{}.Parent(), "the root has no parent")
+}
+
 func TestParseModulePathRejectsInvalidInput(t *testing.T) {
 	t.Parallel()
 

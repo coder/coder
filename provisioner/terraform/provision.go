@@ -23,6 +23,7 @@ import (
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
 	"github.com/coder/coder/v2/provisioner/terraform/scriptorder"
+	"github.com/coder/coder/v2/provisioner/terraform/tfstate"
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/terraform-provider-coder/v2/provider"
@@ -315,7 +316,7 @@ func (s *server) Graph(
 	}
 	logTerraformEnvVars(sess)
 
-	modules := []*tfjson.StateModule{}
+	var modules []*tfjson.StateModule
 	var planConfig *tfjson.Config
 	isStartTransition := request.GetMetadata().GetWorkspaceTransition() ==
 		proto.WorkspaceTransition_START
@@ -337,14 +338,23 @@ func (s *server) Graph(
 			planConfig = plan.Config
 		}
 	case proto.GraphSource_SOURCE_STATE:
-		e.mut.Lock()
-		tfState, err := e.state(ctx, killCtx)
-		e.mut.Unlock()
+		// Apply returns this file as the workspace's state, so it is where
+		// Terraform keeps the state.
+		var err error
+		modules, err = tfstate.Read(e.files.StateFilePath(), MaxTerraformVersion)
 		if err != nil {
-			return provisionersdk.GraphError("load tfstate for graph: %s", err)
-		}
-		if tfState.Values != nil {
-			modules = []*tfjson.StateModule{tfState.Values.RootModule}
+			// Let Terraform read what tfstate.Read can't rather than fail
+			// the build.
+			s.logger.Warn(ctx, "not reading terraform state file, falling back to terraform show", slog.Error(err))
+			e.mut.Lock()
+			tfState, err := e.show(ctx, killCtx)
+			e.mut.Unlock()
+			if err != nil {
+				return provisionersdk.GraphError("load tfstate for graph: %s", err)
+			}
+			if tfState.Values != nil {
+				modules = []*tfjson.StateModule{tfState.Values.RootModule}
+			}
 		}
 		convertScriptOrder = isStartTransition && hasScriptOrderDataSource(modules)
 		if convertScriptOrder {
