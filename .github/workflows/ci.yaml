@@ -6,14 +6,8 @@ on:
       - main
       - release/*
 
-  # GitHub Actions does not reliably trigger push-based CI when a new
-  # branch is created at a commit that already has a workflow run (e.g.
-  # from main). The create event fires separately and ensures CI runs
-  # on newly cut release branches. Non-release branch creations are
-  # filtered out by the changes job condition.
-  create:
-
   pull_request:
+  merge_group:
   workflow_dispatch:
 
 permissions:
@@ -28,13 +22,6 @@ concurrency:
 jobs:
   changes:
     runs-on: ubuntu-latest
-    # For create events, only run on release branches to avoid
-    # triggering CI for every feature branch creation.
-    if: |
-      github.event_name != 'create' || (
-        github.event.ref_type == 'branch' &&
-        startsWith(github.event.ref, 'release/')
-      )
     outputs:
       docs-only: ${{ steps.filter.outputs.docs_count == steps.filter.outputs.all_count }}
       docs: ${{ steps.filter.outputs.docs }}
@@ -45,6 +32,7 @@ jobs:
       ci: ${{ steps.filter.outputs.ci }}
       db: ${{ steps.filter.outputs.db }}
       gomod: ${{ steps.filter.outputs.gomod }}
+      macos: ${{ steps.filter.outputs.macos }}
       offlinedocs-only: ${{ steps.filter.outputs.offlinedocs_count == steps.filter.outputs.all_count }}
       offlinedocs: ${{ steps.filter.outputs.offlinedocs }}
       tailnet-integration: ${{ steps.filter.outputs.tailnet-integration }}
@@ -126,6 +114,19 @@ jobs:
             gomod:
               - "go.mod"
               - "go.sum"
+            # Pull requests that touch these paths run the macOS lane of
+            # test-go-pg. Other pull requests, except those into release
+            # branches, leave it to the merge queue.
+            macos:
+              - "**/*_darwin*.go"
+              - "**/*_unix*.go"
+              - "**/*_other*.go"
+              - "**/*_unsupported*.go"
+              - "**/*_stub*.go"
+              - "pty/**"
+              - ".github/workflows/ci.yaml"
+              - ".github/actions/test-go-pg/**"
+              - ".github/actions/setup-gnu-tools/**"
             site:
               - "site/**"
             k8s:
@@ -575,10 +576,15 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os:
-          - ubuntu-latest
-          - macos-latest
-          - windows-2022
+        # macOS runner capacity is limited, so pull requests run the macOS
+        # lane only when they touch macOS-specific paths (see the macos filter
+        # in the changes job). This includes stacked pull requests, whose
+        # changes reach main through the merge queue with the pull request
+        # below them. Every other event keeps it: the merge queue tests each
+        # pull request on macOS before it merges, pushes to main run it
+        # uncached and refresh the macOS test cache, and pull requests into
+        # release branches, which have no merge queue, run it before merging.
+        os: ${{ fromJSON(github.event_name == 'pull_request' && !startsWith(github.base_ref, 'release/') && needs.changes.outputs.macos != 'true' && '["ubuntu-latest", "windows-2022"]' || '["ubuntu-latest", "macos-latest", "windows-2022"]') }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
@@ -1175,8 +1181,9 @@ jobs:
     needs: changes
     # Pull requests only snapshot Storybook when the frontend or CI changes.
     # Every push to main and release branches still snapshots, which keeps
-    # the Pixel baseline current.
-    if: needs.changes.outputs.site == 'true' || needs.changes.outputs.ci == 'true' || github.event_name != 'pull_request'
+    # the Pixel baseline current. The merge queue skips it: the pull request
+    # already snapshotted, and this job doesn't gate the merge.
+    if: github.event_name != 'merge_group' && (needs.changes.outputs.site == 'true' || needs.changes.outputs.ci == 'true' || github.event_name != 'pull_request')
 
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-24.04-16' || 'ubuntu-latest' }}
 
