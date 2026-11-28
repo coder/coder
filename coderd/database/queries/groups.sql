@@ -8,6 +8,15 @@ WHERE
 LIMIT
 	1;
 
+-- name: GetGroupByIDForUpdate :one
+SELECT
+	*
+FROM
+	groups
+WHERE
+	id = $1
+FOR UPDATE;
+
 -- name: ValidateGroupIDs :one
 WITH input AS (
 	SELECT

@@ -1888,6 +1888,14 @@ func (m queryMetricsStore) GetChatProjectByID(ctx context.Context, id uuid.UUID)
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetChatProjectByIDForShare(ctx context.Context, id uuid.UUID) (database.ChatProject, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatProjectByIDForShare(ctx, id)
+	m.queryLatencies.WithLabelValues("GetChatProjectByIDForShare").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatProjectByIDForShare").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetChatProjectByIDForUpdate(ctx context.Context, id uuid.UUID) (database.ChatProject, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChatProjectByIDForUpdate(ctx, id)
@@ -2397,6 +2405,14 @@ func (m queryMetricsStore) GetGroupByID(ctx context.Context, id uuid.UUID) (data
 	r0, r1 := m.s.GetGroupByID(ctx, id)
 	m.queryLatencies.WithLabelValues("GetGroupByID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetGroupByID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetGroupByIDForUpdate(ctx context.Context, id uuid.UUID) (database.Group, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetGroupByIDForUpdate(ctx, id)
+	m.queryLatencies.WithLabelValues("GetGroupByIDForUpdate").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetGroupByIDForUpdate").Inc()
 	return r0, r1
 }
 
@@ -5368,6 +5384,14 @@ func (m queryMetricsStore) LockChatByID(ctx context.Context, id uuid.UUID) (uuid
 	return r0, r1
 }
 
+func (m queryMetricsStore) LockGroupMembersByUserIDForShare(ctx context.Context, userID database.LockGroupMembersByUserIDForShareParams) ([]uuid.UUID, error) {
+	start := time.Now()
+	r0, r1 := m.s.LockGroupMembersByUserIDForShare(ctx, userID)
+	m.queryLatencies.WithLabelValues("LockGroupMembersByUserIDForShare").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "LockGroupMembersByUserIDForShare").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) LockOrganizationMembersByUserIDsForShare(ctx context.Context, arg database.LockOrganizationMembersByUserIDsForShareParams) ([]uuid.UUID, error) {
 	start := time.Now()
 	r0, r1 := m.s.LockOrganizationMembersByUserIDsForShare(ctx, arg)
@@ -5478,6 +5502,14 @@ func (m queryMetricsStore) ReleaseExternalAuthLinkRefreshLease(ctx context.Conte
 	m.queryLatencies.WithLabelValues("ReleaseExternalAuthLinkRefreshLease").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ReleaseExternalAuthLinkRefreshLease").Inc()
 	return r0
+}
+
+func (m queryMetricsStore) RemoveChatsFromUnusableChatProjects(ctx context.Context, arg database.RemoveChatsFromUnusableChatProjectsParams) ([]uuid.UUID, error) {
+	start := time.Now()
+	r0, r1 := m.s.RemoveChatsFromUnusableChatProjects(ctx, arg)
+	m.queryLatencies.WithLabelValues("RemoveChatsFromUnusableChatProjects").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "RemoveChatsFromUnusableChatProjects").Inc()
+	return r0, r1
 }
 
 func (m queryMetricsStore) RemoveUserFromGroups(ctx context.Context, arg database.RemoveUserFromGroupsParams) ([]uuid.UUID, error) {

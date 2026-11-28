@@ -132,6 +132,11 @@ func insertChat(
 	buffer := NewPublishBuffer(publisher)
 	defer buffer.Discard()
 	err := store.InTx(func(store database.Store) error {
+		if input.ProjectID.Valid {
+			if err := lockChatProjectAccess(ctx, store, input.ProjectID.UUID, input.OwnerID); err != nil {
+				return err
+			}
+		}
 		if input.RootChatID.Valid {
 			// Lock the family root before inserting the child so this
 			// transaction serializes with SetFamilyArchived, which also

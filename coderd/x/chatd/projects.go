@@ -3,6 +3,7 @@ package chatd
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 
 	"github.com/google/uuid"
@@ -11,6 +12,9 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/pubsub"
+	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 // usableChatProject loads the project and reports whether the chat owner can
@@ -58,4 +62,45 @@ func ChatProjectUsableBy(ctx context.Context, db database.Store, project databas
 		return false, xerrors.Errorf("check chat project access: %w", err)
 	}
 	return usable, nil
+}
+
+// RemoveChatsFromUnusableProjects moves chats out of projects their owners
+// can no longer use. Call it in the transaction that removed the access, so
+// the API never shows a chat in a project its owner was removed from, and
+// pass the returned chat IDs to PublishChatsLeftProject after the commit.
+func RemoveChatsFromUnusableProjects(ctx context.Context, tx database.Store, arg database.RemoveChatsFromUnusableChatProjectsParams) ([]uuid.UUID, error) {
+	//nolint:gocritic // The caller authorized the access change; this is its side effect on other users' chats.
+	ids, err := tx.RemoveChatsFromUnusableChatProjects(dbauthz.AsSystemRestricted(ctx), arg)
+	if err != nil {
+		return nil, xerrors.Errorf("remove chats from unusable chat projects: %w", err)
+	}
+	return ids, nil
+}
+
+// PublishChatsLeftProject tells the owners' watching clients that the chats
+// left their project. Failures are logged, because the move is already
+// committed and clients see it on their next fetch.
+func PublishChatsLeftProject(ctx context.Context, logger slog.Logger, db database.Store, ps pubsub.Pubsub, chatIDs []uuid.UUID) {
+	if len(chatIDs) == 0 {
+		return
+	}
+	//nolint:gocritic // The chats belong to other users; only their watch events are built here.
+	chats, err := db.GetChatsByIDs(dbauthz.AsSystemRestricted(ctx), chatIDs)
+	if err != nil {
+		logger.Error(ctx, "failed to load chats that left their project", slog.Error(err))
+		return
+	}
+	for _, chat := range chats {
+		payload, err := json.Marshal(codersdk.ChatWatchEvent{
+			Kind: codersdk.ChatWatchEventKindProjectChange,
+			Chat: chatWatchEventSDKChat(chat, nil),
+		})
+		if err != nil {
+			logger.Error(ctx, "failed to marshal chat project change event", slog.F("chat_id", chat.ID), slog.Error(err))
+			continue
+		}
+		if err := ps.Publish(coderdpubsub.ChatWatchEventChannel(chat.OwnerID), payload); err != nil {
+			logger.Error(ctx, "failed to publish chat project change event", slog.F("chat_id", chat.ID), slog.Error(err))
+		}
+	}
 }

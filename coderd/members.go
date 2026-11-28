@@ -19,6 +19,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/searchquery"
 	"github.com/coder/coder/v2/coderd/util/slice"
+	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -129,10 +130,21 @@ func (api *API) deleteOrganizationMember(rw http.ResponseWriter, r *http.Request
 		return
 	}
 
-	err := api.Database.DeleteOrganizationMember(ctx, database.DeleteOrganizationMemberParams{
-		OrganizationID: organization.ID,
-		UserID:         member.UserID,
-	})
+	var removedChatIDs []uuid.UUID
+	err := api.Database.InTx(func(tx database.Store) error {
+		err := tx.DeleteOrganizationMember(ctx, database.DeleteOrganizationMemberParams{
+			OrganizationID: organization.ID,
+			UserID:         member.UserID,
+		})
+		if err != nil {
+			return err
+		}
+		removedChatIDs, err = chatd.RemoveChatsFromUnusableProjects(ctx, tx, database.RemoveChatsFromUnusableChatProjectsParams{
+			OwnerID:        uuid.NullUUID{UUID: member.UserID, Valid: true},
+			OrganizationID: uuid.NullUUID{UUID: organization.ID, Valid: true},
+		})
+		return err
+	}, nil)
 	if httpapi.Is404Error(err) {
 		httpapi.ResourceNotFound(rw)
 		return
@@ -141,6 +153,7 @@ func (api *API) deleteOrganizationMember(rw http.ResponseWriter, r *http.Request
 		httpapi.InternalServerError(rw, err)
 		return
 	}
+	chatd.PublishChatsLeftProject(ctx, api.Logger, api.Database, api.Pubsub, removedChatIDs)
 
 	aReq.New = database.AuditableOrganizationMember{}
 	rw.WriteHeader(http.StatusNoContent)

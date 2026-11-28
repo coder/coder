@@ -304,6 +304,14 @@ func (s AGPLIDPSync) ApplyGroupDifference(ctx context.Context, tx database.Store
 				slog.F("expected_count", len(removeIDs)),
 			)
 		}
+		// Chats leave projects the user could only use through a removed
+		// group. Watching clients see the move on their next fetch.
+		_, err = tx.RemoveChatsFromUnusableChatProjects(ctx, database.RemoveChatsFromUnusableChatProjectsParams{
+			OwnerID: uuid.NullUUID{UUID: user.ID, Valid: true},
+		})
+		if err != nil {
+			return xerrors.Errorf("remove chats from unusable chat projects: %w", err)
+		}
 	}
 
 	if len(add) > 0 {

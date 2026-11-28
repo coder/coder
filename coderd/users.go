@@ -30,6 +30,7 @@ import (
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/userpassword"
 	"github.com/coder/coder/v2/coderd/util/slice"
+	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -738,7 +739,19 @@ func (api *API) deleteUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = api.Database.UpdateUserDeletedByID(ctx, user.ID)
+	// Deleting the user removes all of their organization memberships, so
+	// their chats leave shared projects in the same transaction.
+	var removedChatIDs []uuid.UUID
+	err = api.Database.InTx(func(tx database.Store) error {
+		if err := tx.UpdateUserDeletedByID(ctx, user.ID); err != nil {
+			return err
+		}
+		var err error
+		removedChatIDs, err = chatd.RemoveChatsFromUnusableProjects(ctx, tx, database.RemoveChatsFromUnusableChatProjectsParams{
+			OwnerID: uuid.NullUUID{UUID: user.ID, Valid: true},
+		})
+		return err
+	}, nil)
 	if dbauthz.IsNotAuthorizedError(err) {
 		httpapi.Forbidden(rw)
 		return
@@ -750,6 +763,7 @@ func (api *API) deleteUser(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	chatd.PublishChatsLeftProject(ctx, api.Logger, api.Database, api.Pubsub, removedChatIDs)
 	user.Deleted = true
 	aReq.New = user
 
