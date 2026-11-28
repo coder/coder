@@ -5,6 +5,11 @@ USAGE:
 
   Start a workspace
 
+  Parameter values from --parameter, --rich-parameter-file and
+  --ephemeral-parameter apply only when start creates a build. If the workspace
+  is already running or starting, start fails; use "coder restart" to apply
+  them.
+
 OPTIONS:
       --always-prompt bool
           Always prompt all parameters. Does not pull parameter values from

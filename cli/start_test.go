@@ -326,6 +326,86 @@ func TestStartWithParameters(t *testing.T) {
 	})
 }
 
+// newMutableParameterWorkspace creates a running workspace owned by a member,
+// with mutableParameterName set to mutableParameterValue.
+func newMutableParameterWorkspace(t *testing.T) (client, member *codersdk.Client, workspace codersdk.Workspace) {
+	t.Helper()
+
+	client = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+	owner := coderdtest.CreateFirstUser(t, client)
+	member, _ = coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+	version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, mutableParamsResponse())
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+	template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+	workspace = coderdtest.CreateWorkspace(t, member, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
+		cwr.RichParameterValues = []codersdk.WorkspaceBuildParameter{
+			{Name: mutableParameterName, Value: mutableParameterValue},
+		}
+	})
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+	return client, member, workspace
+}
+
+// requireLatestBuildParameter asserts the workspace's latest build used value
+// for mutableParameterName.
+func requireLatestBuildParameter(t *testing.T, client *codersdk.Client, workspace codersdk.Workspace, value string) {
+	t.Helper()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	workspace, err := client.Workspace(ctx, workspace.ID)
+	require.NoError(t, err)
+	actualParameters, err := client.WorkspaceBuildParameters(ctx, workspace.LatestBuild.ID)
+	require.NoError(t, err)
+	require.Contains(t, actualParameters, codersdk.WorkspaceBuildParameter{
+		Name:  mutableParameterName,
+		Value: value,
+	})
+}
+
+func TestStartParameterFlags(t *testing.T) {
+	t.Parallel()
+
+	t.Run("StoppedWorkspace", func(t *testing.T) {
+		t.Parallel()
+
+		client, member, workspace := newMutableParameterWorkspace(t)
+		workspaceBuild := coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionStop)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspaceBuild.ID)
+
+		inv, root := clitest.New(t, "start", workspace.Name, "--parameter", mutableParameterName+"=xyz")
+		clitest.SetupConfig(t, member, root)
+		require.NoError(t, inv.Run())
+
+		requireLatestBuildParameter(t, client, workspace, "xyz")
+	})
+
+	t.Run("RunningWorkspace", func(t *testing.T) {
+		t.Parallel()
+
+		for _, tc := range []struct {
+			name string
+			args []string
+		}{
+			{name: "Parameter", args: []string{"--parameter", mutableParameterName + "=xyz"}},
+			{name: "EphemeralParameter", args: []string{"--ephemeral-parameter", "reset=true"}},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				client, member, workspace := newMutableParameterWorkspace(t)
+
+				inv, root := clitest.New(t, append([]string{"start", workspace.Name}, tc.args...)...)
+				clitest.SetupConfig(t, member, root)
+				err := inv.Run()
+				require.ErrorContains(t, err, "already running")
+				require.ErrorContains(t, err, "coder restart "+workspace.Name)
+
+				requireLatestBuildParameter(t, client, workspace, mutableParameterValue)
+			})
+		}
+	})
+}
+
 func TestStartUseParameterDefaults(t *testing.T) {
 	t.Parallel()
 
