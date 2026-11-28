@@ -807,8 +807,20 @@ SELECT
 	workspace_builds.template_version_id as build_template_version_id
 FROM
 	workspaces
-LEFT JOIN
-	workspace_builds ON workspace_builds.workspace_id = workspaces.id
+INNER JOIN LATERAL (
+	-- Fetch only the latest build per workspace with one backward index probe.
+	-- Matching build_number against a correlated MAX() made the planner hash
+	-- every workspace and sequentially scan all builds.
+	SELECT
+		*
+	FROM
+		workspace_builds
+	WHERE
+		workspace_builds.workspace_id = workspaces.id
+	ORDER BY
+		workspace_builds.build_number DESC
+	LIMIT 1
+) workspace_builds ON true
 INNER JOIN
 	provisioner_jobs ON workspace_builds.job_id = provisioner_jobs.id
 INNER JOIN
@@ -816,15 +828,6 @@ INNER JOIN
 INNER JOIN
 	users ON workspaces.owner_id = users.id
 WHERE
-	workspace_builds.build_number = (
-		SELECT
-			MAX(build_number)
-		FROM
-			workspace_builds
-		WHERE
-			workspace_builds.workspace_id = workspaces.id
-	) AND
-
 	(
 		-- A workspace may be eligible for autostop if the following are true:
 		--   * The provisioner job has not failed.

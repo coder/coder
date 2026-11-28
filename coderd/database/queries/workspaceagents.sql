@@ -275,19 +275,23 @@ SELECT * FROM workspace_agent_log_sources WHERE workspace_agent_id = ANY(@ids ::
 -- Logs can take up a lot of space, so it's important we clean up frequently.
 -- name: DeleteOldWorkspaceAgentLogs :execrows
 WITH
-	latest_builds AS (
-		SELECT
-			workspace_id, max(build_number) AS max_build_number
+	-- Start from agents that still have logs so the work scales with the
+	-- logs table instead of every agent, resource, and build ever created.
+	log_agents AS (
+		SELECT DISTINCT
+			agent_id
 		FROM
-			workspace_builds
-		GROUP BY
-			workspace_id
+			workspace_agent_logs
 	),
 	old_agents AS (
 		SELECT
 			wa.id
 		FROM
+			log_agents
+		JOIN
 			workspace_agents AS wa
+		ON
+			wa.id = log_agents.agent_id
 		JOIN
 			workspace_resources AS wr
 		ON
@@ -296,15 +300,18 @@ WITH
 			workspace_builds AS wb
 		ON
 			wb.job_id = wr.job_id
-		LEFT JOIN
-			latest_builds
-		ON
-			latest_builds.workspace_id = wb.workspace_id
-		AND
-			latest_builds.max_build_number = wb.build_number
 		WHERE
 			-- Filter out the latest builds for each workspace.
-			latest_builds.workspace_id IS NULL
+			EXISTS (
+				SELECT
+					1
+				FROM
+					workspace_builds AS newer_builds
+				WHERE
+					newer_builds.workspace_id = wb.workspace_id
+				AND
+					newer_builds.build_number > wb.build_number
+			)
 		AND CASE
 			-- If the last time the agent connected was before @threshold
 			WHEN wa.last_connected_at IS NOT NULL THEN
