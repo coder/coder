@@ -1,6 +1,7 @@
 package agent_test
 
 import (
+	"context"
 	"net/http"
 	"testing"
 
@@ -45,14 +46,17 @@ func TestAgent_APIClientSessionID(t *testing.T) {
 	require.NoError(t, err)
 
 	// The middleware should have added client_session_id to the request log
-	// context, so at least one agent log entry carries it.
-	entries := sink.Entries(func(e slog.SinkEntry) bool {
-		for _, f := range e.Fields {
-			if f.Name == "client_session_id" {
-				return f.Value == sessionID
+	// context, so at least one agent log entry carries it. The request log is
+	// written after the handler returns, so the client can see the response
+	// before the entry exists.
+	testutil.Eventually(ctx, t, func(context.Context) bool {
+		return len(sink.Entries(func(e slog.SinkEntry) bool {
+			for _, f := range e.Fields {
+				if f.Name == "client_session_id" {
+					return f.Value == sessionID
+				}
 			}
-		}
-		return false
-	})
-	require.NotEmpty(t, entries, "client_session_id should reach the agent request logs")
+			return false
+		})) > 0
+	}, testutil.IntervalFast, "client_session_id should reach the agent request logs")
 }
