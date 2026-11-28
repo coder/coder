@@ -337,6 +337,21 @@ func (mr *MockStoreMockRecorder) CalculateAIBridgeInterceptionsTelemetrySummary(
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CalculateAIBridgeInterceptionsTelemetrySummary", reflect.TypeOf((*MockStore)(nil).CalculateAIBridgeInterceptionsTelemetrySummary), ctx, arg)
 }
 
+// ClaimMCPServerUserTokenRefresh mocks base method.
+func (m *MockStore) ClaimMCPServerUserTokenRefresh(ctx context.Context, arg database.ClaimMCPServerUserTokenRefreshParams) (time.Time, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ClaimMCPServerUserTokenRefresh", ctx, arg)
+	ret0, _ := ret[0].(time.Time)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ClaimMCPServerUserTokenRefresh indicates an expected call of ClaimMCPServerUserTokenRefresh.
+func (mr *MockStoreMockRecorder) ClaimMCPServerUserTokenRefresh(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClaimMCPServerUserTokenRefresh", reflect.TypeOf((*MockStore)(nil).ClaimMCPServerUserTokenRefresh), ctx, arg)
+}
+
 // ClaimPrebuiltWorkspace mocks base method.
 func (m *MockStore) ClaimPrebuiltWorkspace(ctx context.Context, arg database.ClaimPrebuiltWorkspaceParams) (database.ClaimPrebuiltWorkspaceRow, error) {
 	m.ctrl.T.Helper()
@@ -10411,6 +10426,20 @@ func (m *MockStore) ReleaseExternalAuthLinkRefreshLease(ctx context.Context, arg
 func (mr *MockStoreMockRecorder) ReleaseExternalAuthLinkRefreshLease(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReleaseExternalAuthLinkRefreshLease", reflect.TypeOf((*MockStore)(nil).ReleaseExternalAuthLinkRefreshLease), ctx, arg)
+}
+
+// ReleaseMCPServerUserTokenRefresh mocks base method.
+func (m *MockStore) ReleaseMCPServerUserTokenRefresh(ctx context.Context, arg database.ReleaseMCPServerUserTokenRefreshParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReleaseMCPServerUserTokenRefresh", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// ReleaseMCPServerUserTokenRefresh indicates an expected call of ReleaseMCPServerUserTokenRefresh.
+func (mr *MockStoreMockRecorder) ReleaseMCPServerUserTokenRefresh(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReleaseMCPServerUserTokenRefresh", reflect.TypeOf((*MockStore)(nil).ReleaseMCPServerUserTokenRefresh), ctx, arg)
 }
 
 // RemoveUserFromGroups mocks base method.

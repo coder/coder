@@ -87,6 +87,14 @@ type sqlcQuerier interface {
 	// Calculates the telemetry summary for a given provider, model, and client
 	// combination for telemetry reporting.
 	CalculateAIBridgeInterceptionsTelemetrySummary(ctx context.Context, arg CalculateAIBridgeInterceptionsTelemetrySummaryParams) (CalculateAIBridgeInterceptionsTelemetrySummaryRow, error)
+	// Claims the right to refresh a token for @lease_seconds by moving
+	// updated_at that far into the future. It matches only the version the
+	// caller read, and never a live claim (updated_at still ahead of NOW()),
+	// so concurrent refreshers of one token make one provider call without
+	// holding a transaction across it. The claimant persists its result
+	// against the returned updated_at; other writers set NOW(), which ends
+	// the claim.
+	ClaimMCPServerUserTokenRefresh(ctx context.Context, arg ClaimMCPServerUserTokenRefreshParams) (time.Time, error)
 	ClaimPrebuiltWorkspace(ctx context.Context, arg ClaimPrebuiltWorkspaceParams) (ClaimPrebuiltWorkspaceRow, error)
 	CleanTailnetCoordinators(ctx context.Context) error
 	CleanTailnetLostPeers(ctx context.Context) error
@@ -1550,6 +1558,10 @@ type sqlcQuerier interface {
 	ReindexStaleChatMessagesSearchTsv(ctx context.Context, batchSize int32) (int64, error)
 	// The lease is only removed if it is the current lease.
 	ReleaseExternalAuthLinkRefreshLease(ctx context.Context, arg ReleaseExternalAuthLinkRefreshLeaseParams) error
+	// Ends a refresh claim that got no token, so the next refresher can claim
+	// at once. It matches only the claim's updated_at, so a write that ended
+	// the claim first keeps its version.
+	ReleaseMCPServerUserTokenRefresh(ctx context.Context, arg ReleaseMCPServerUserTokenRefreshParams) error
 	RemoveUserFromGroups(ctx context.Context, arg RemoveUserFromGroupsParams) ([]uuid.UUID, error)
 	// Renews (chat_id, runner_id) leases that are still fresh and still own
 	// their chat, and returns the renewed pairs. A stale lease is never
